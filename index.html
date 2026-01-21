@@ -53,6 +53,17 @@
         } else {
           console.log('OneSignal Web: nenhum userId encontrado em localStorage');
         }
+        try {
+          const perm = await OneSignal.Notifications.permission;
+          console.log('OneSignal Web: permission', perm);
+          if (perm === 'granted' && !OneSignal.User.pushSubscription.optedIn) {
+            await OneSignal.User.pushSubscription.optIn();
+            console.log('OneSignal Web: pushSubscription optIn acionado');
+          }
+          console.log('OneSignal Web: optedIn', OneSignal.User.pushSubscription.optedIn);
+        } catch (err) {
+          console.log('OneSignal Web: erro ao optar pela subscrição', err);
+        }
         window.__onesignalPollAttempts = 0;
         window.__onesignalPollTimer = setInterval(async function() {
           try {
@@ -69,6 +80,13 @@
               console.log('OneSignal Web: external_id atualizado via polling para', id);
               clearInterval(window.__onesignalPollTimer);
             }
+            try {
+              const permNow = await OneSignal.Notifications.permission;
+              if (permNow === 'granted' && !OneSignal.User.pushSubscription.optedIn) {
+                await OneSignal.User.pushSubscription.optIn();
+                console.log('OneSignal Web: pushSubscription optIn acionado via polling');
+              }
+            } catch {}
             window.__onesignalPollAttempts++;
             if (window.__onesignalPollAttempts > 60) {
               clearInterval(window.__onesignalPollTimer);
