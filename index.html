@@ -8,24 +8,43 @@
   <meta name="theme-color" content="#0175C2">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="flutter-web-renderer" content="canvaskit">
+  <meta name="apple-mobile-web-app-title" content="Faekon Suporte">
+  
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
   <title>Faekon Suporte</title>
-</head>
-<body>
-  <script src="flutter.js" defer></script>
+
+  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <script>
-    window.addEventListener('load', function() {
-      _flutter.loader.loadEntrypoint({
-        serviceWorker: {serviceWorkerVersion: null}
-      }).then(function(engineInitializer) {
-        return engineInitializer.initializeEngine();
-      }).then(function(appRunner) {
-        return appRunner.runApp();
+    window.OneSignalDeferred = window.OneSignalDeferred || [];
+    OneSignalDeferred.push(async function(OneSignal) {
+      await OneSignal.init({
+        appId: "61e6874c-bca0-4628-ad07-8053c0cd499e", // REVISE: Coloque aqui o ID do OneSignal
+        safari_web_id: "SEU_SAFARI_ID_AQUI", // Opcional
+        notifyButton: {
+          enable: true,
+          position: 'bottom-right',
+          theme: 'default',
+          text: {
+            'tip.state.unsubscribed': 'Inscreva-se para notificações',
+            'tip.state.subscribed': "Você está inscrito",
+            'tip.state.blocked': "Você bloqueou as notificações",
+            'message.prenotify': 'Clique para receber alertas de novas mensagens',
+          }
+        },
+        allowLocalhostAsSecureOrigin: true,
       });
+      
+      // Identifica o usuário para o Cloudflare Worker saber para quem enviar
+      // Se for o admin, mude para 'admin' na lógica do seu código Dart
+      // OneSignal.login("user_id_aqui"); 
     });
   </script>
-</body>
+
+  <script src="flutter_bootstrap.js" async></script>
+</head>
+<body>
+  </body>
 </html>

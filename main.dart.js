@@ -51749,26 +51749,27 @@ ams(){var s=$.aP,r=(s==null?$.aP=$.c6():s).c5("[DEFAULT]")
 A.b9(r,$.co(),!0)
 A.dz(new A.bO(r)).cw("quick_messages").za("text").j3().eQ(new A.aAt(this))},
 C9(a){return this.ar8(a)},
-ar8(a){var s=0,r=A.q(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f
+ar8(a){var s=0,r=A.q(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e
 var $async$C9=A.m(function(b,c){if(b===1){o.push(c)
 s=p}for(;;)switch(s){case 0:p=4
 i=n.a
 m=i.e?"Suporte Faekon":i.d
-l=A.fr("https://us-central1-chatfaekon-806e9.cloudfunctions.net/notifyAdmin",0,null)
+l=A.fr("https://delicate-morning-1bc8.games-drze.workers.dev",0,null)
 i=t.N
 h=A.a6(["Content-Type","application/json; charset=utf-8"],i,i)
+g=n.a.e?"user":"admin"
 s=7
-return A.k(A.bis(l,B.cB.a1e(A.a6(["chatId",n.a.c,"title",m,"message",a],i,i),null),h),$async$C9)
+return A.k(A.bis(l,B.cB.a1e(A.a6(["title",m,"message",a,"externalId",g],i,i),null),h),$async$C9)
 case 7:k=c
 h=k
-A.Nu().$1("CloudFunction notifyAdmin resp: "+k.b+" "+A.b_F(A.aZi(h.e)).fD(h.w))
+A.Nu().$1("Cloudflare Worker resp: "+k.b+" "+A.b_F(A.aZi(h.e)).fD(h.w))
 p=2
 s=6
 break
 case 4:p=3
-f=o.pop()
-j=A.a_(f)
-A.Nu().$1("WEB notifyAdmin error: "+A.j(j))
+e=o.pop()
+j=A.a_(e)
+A.Nu().$1("WEB notification error: "+A.j(j))
 s=6
 break
 case 3:s=2
