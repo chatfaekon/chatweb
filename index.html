@@ -39,28 +39,48 @@
 
       try {
         await OneSignal.Notifications.requestPermission(true);
-        const uid =
+        const isAdmin =
+          localStorage.getItem('flutter.isAdmin') === 'true' ||
+          localStorage.getItem('isAdmin') === 'true';
+        const uidRaw =
           localStorage.getItem('flutter.userId') ||
           localStorage.getItem('userId');
+        const uid = isAdmin ? 'admin' : uidRaw;
         if (uid) {
           await OneSignal.login(uid);
+          window.__onesignalExternalIdSet = true;
           console.log('OneSignal Web: external_id definido para', uid);
         } else {
           console.log('OneSignal Web: nenhum userId encontrado em localStorage');
         }
-        window.addEventListener('storage', async function(e) {
-          if (e.key === 'flutter.userId' || e.key === 'userId') {
-            const newUid = e.newValue;
-            if (newUid) {
-              try {
-                await OneSignal.login(newUid);
-                console.log('OneSignal Web: external_id atualizado para', newUid);
-              } catch (err) {
-                console.log('OneSignal Web: erro ao atualizar external_id', err);
-              }
+        window.__onesignalPollAttempts = 0;
+        window.__onesignalPollTimer = setInterval(async function() {
+          try {
+            const isAdm =
+              localStorage.getItem('flutter.isAdmin') === 'true' ||
+              localStorage.getItem('isAdmin') === 'true';
+            const raw =
+              localStorage.getItem('flutter.userId') ||
+              localStorage.getItem('userId');
+            const id = isAdm ? 'admin' : raw;
+            if (id && !window.__onesignalExternalIdSet) {
+              await OneSignal.login(id);
+              window.__onesignalExternalIdSet = true;
+              console.log('OneSignal Web: external_id atualizado via polling para', id);
+              clearInterval(window.__onesignalPollTimer);
+            }
+            window.__onesignalPollAttempts++;
+            if (window.__onesignalPollAttempts > 60) {
+              clearInterval(window.__onesignalPollTimer);
+            }
+          } catch (err) {
+            console.log('OneSignal Web: erro no polling de external_id', err);
+            window.__onesignalPollAttempts++;
+            if (window.__onesignalPollAttempts > 60) {
+              clearInterval(window.__onesignalPollTimer);
             }
           }
-        });
+        }, 1000);
       } catch (e) {
         console.log('OneSignal Web: erro ao definir external_id', e);
       }
