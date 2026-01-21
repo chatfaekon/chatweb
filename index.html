@@ -36,10 +36,20 @@
         },
         allowLocalhostAsSecureOrigin: true,
       });
-      
-      // Identifica o usuário para o Cloudflare Worker saber para quem enviar
-      // Se for o admin, mude para 'admin' na lógica do seu código Dart
-      // OneSignal.login("user_id_aqui"); 
+
+      try {
+        const uid =
+          localStorage.getItem('flutter.userId') ||
+          localStorage.getItem('userId');
+        if (uid) {
+          await OneSignal.login(uid);
+          console.log('OneSignal Web: external_id definido para', uid);
+        } else {
+          console.log('OneSignal Web: nenhum userId encontrado em localStorage');
+        }
+      } catch (e) {
+        console.log('OneSignal Web: erro ao definir external_id', e);
+      }
     });
   </script>
 
