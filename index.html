@@ -37,70 +37,75 @@
         allowLocalhostAsSecureOrigin: true,
       });
 
+      // Função auxiliar para limpar o ID (remover aspas extras do SharedPreferences)
+      function cleanUserId(id) {
+        if (!id) return null;
+        if (id.startsWith('"') && id.endsWith('"')) {
+          return id.slice(1, -1);
+        }
+        return id;
+      }
+
+      // Função global para forçar login (útil para debug ou chamada externa)
+      window.forceOneSignalLogin = async function(rawId) {
+        const id = cleanUserId(rawId);
+        if (id) {
+          console.log("Forçando login OneSignal com ID:", id);
+          await OneSignal.login(id);
+          console.log("Login efetuado para:", id);
+        }
+      };
+
       try {
-        await OneSignal.Notifications.requestPermission(true);
-        const isAdmin =
-          localStorage.getItem('flutter.isAdmin') === 'true' ||
-          localStorage.getItem('isAdmin') === 'true';
-        const uidRaw =
-          localStorage.getItem('flutter.userId') ||
-          localStorage.getItem('userId');
-        const uid = isAdmin ? 'admin' : uidRaw;
+        let rawUid = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
+        let uid = cleanUserId(rawUid);
+        
+        // Verifica se é admin
+        const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
+                        localStorage.getItem('flutter.isAdmin') === '"true"';
+
+        if (isAdmin) {
+          uid = 'admin';
+        }
+
         if (uid) {
           await OneSignal.login(uid);
-          window.__onesignalExternalIdSet = true;
-          console.log('OneSignal Web: external_id definido para', uid);
+          console.log('OneSignal Web: external_id inicial definido para', uid);
         } else {
-          console.log('OneSignal Web: nenhum userId encontrado em localStorage');
+          console.log('OneSignal Web: aguardando userId...');
         }
-        try {
-          const perm = await OneSignal.Notifications.permission;
-          console.log('OneSignal Web: permission', perm);
-          if (perm === 'granted' && !OneSignal.User.pushSubscription.optedIn) {
-            await OneSignal.User.pushSubscription.optIn();
-            console.log('OneSignal Web: pushSubscription optIn acionado');
-          }
-          console.log('OneSignal Web: optedIn', OneSignal.User.pushSubscription.optedIn);
-        } catch (err) {
-          console.log('OneSignal Web: erro ao optar pela subscrição', err);
+        
+        // Tenta solicitar subscrição explicitamente
+        // Nota: Browsers podem bloquear se não houver interação do usuário, mas o notifyButton ajuda
+        if (OneSignal.User.PushSubscription.optedIn === false) {
+             console.log("Solicitando optIn...");
+             OneSignal.User.PushSubscription.optIn();
         }
-        window.__onesignalPollAttempts = 0;
-        window.__onesignalPollTimer = setInterval(async function() {
-          try {
-            const isAdm =
-              localStorage.getItem('flutter.isAdmin') === 'true' ||
-              localStorage.getItem('isAdmin') === 'true';
-            const raw =
-              localStorage.getItem('flutter.userId') ||
-              localStorage.getItem('userId');
-            const id = isAdm ? 'admin' : raw;
-            if (id && !window.__onesignalExternalIdSet) {
-              await OneSignal.login(id);
-              window.__onesignalExternalIdSet = true;
-              console.log('OneSignal Web: external_id atualizado via polling para', id);
-              clearInterval(window.__onesignalPollTimer);
-            }
-            try {
-              const permNow = await OneSignal.Notifications.permission;
-              if (permNow === 'granted' && !OneSignal.User.pushSubscription.optedIn) {
-                await OneSignal.User.pushSubscription.optIn();
-                console.log('OneSignal Web: pushSubscription optIn acionado via polling');
-              }
-            } catch {}
-            window.__onesignalPollAttempts++;
-            if (window.__onesignalPollAttempts > 60) {
-              clearInterval(window.__onesignalPollTimer);
-            }
-          } catch (err) {
-            console.log('OneSignal Web: erro no polling de external_id', err);
-            window.__onesignalPollAttempts++;
-            if (window.__onesignalPollAttempts > 60) {
-              clearInterval(window.__onesignalPollTimer);
-            }
-          }
-        }, 1000);
+
+        // Listener para mudanças no localStorage (quando o Flutter salva o ID)
+        let lastUid = uid;
+        setInterval(async () => {
+           let currentRaw = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
+           let currentUid = cleanUserId(currentRaw);
+           
+           const currentIsAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
+                                  localStorage.getItem('flutter.isAdmin') === '"true"';
+           
+           if (currentIsAdmin) currentUid = 'admin';
+
+           if (currentUid && currentUid !== lastUid) {
+             console.log('OneSignal Web: ID alterado/detectado:', currentUid);
+             await OneSignal.login(currentUid);
+             lastUid = currentUid;
+             
+             if (OneSignal.User.PushSubscription.optedIn === false) {
+                OneSignal.User.PushSubscription.optIn();
+             }
+           }
+        }, 2000); // Verifica a cada 2 segundos
+
       } catch (e) {
-        console.log('OneSignal Web: erro ao definir external_id', e);
+        console.log('OneSignal Web: erro ao configurar', e);
       }
     });
   </script>
