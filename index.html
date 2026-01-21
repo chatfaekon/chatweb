@@ -38,6 +38,7 @@
       });
 
       try {
+        await OneSignal.Notifications.requestPermission(true);
         const uid =
           localStorage.getItem('flutter.userId') ||
           localStorage.getItem('userId');
@@ -47,6 +48,19 @@
         } else {
           console.log('OneSignal Web: nenhum userId encontrado em localStorage');
         }
+        window.addEventListener('storage', async function(e) {
+          if (e.key === 'flutter.userId' || e.key === 'userId') {
+            const newUid = e.newValue;
+            if (newUid) {
+              try {
+                await OneSignal.login(newUid);
+                console.log('OneSignal Web: external_id atualizado para', newUid);
+              } catch (err) {
+                console.log('OneSignal Web: erro ao atualizar external_id', err);
+              }
+            }
+          }
+        });
       } catch (e) {
         console.log('OneSignal Web: erro ao definir external_id', e);
       }
