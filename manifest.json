@@ -1,11 +1,12 @@
 {
-    "name": "chat_app",
-    "short_name": "chat_app",
-    "start_url": ".",
+    "name": "Faekon Suporte",
+    "short_name": "Faekon",
+    "start_url": "/chatweb/",
+    "scope": "/chatweb/",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Suporte Faekon via chat",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
