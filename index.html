@@ -57,6 +57,7 @@
       };
 
       try {
+        await OneSignal.Notifications.requestPermission(true);
         let rawUid = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
         let uid = cleanUserId(rawUid);
         
@@ -75,12 +76,41 @@
           console.log('OneSignal Web: aguardando userId...');
         }
         
+        const promptBtn = document.getElementById('onesignal-activate-btn');
+        async function refreshPromptBtn() {
+          try {
+            const perm = await OneSignal.Notifications.permission;
+            const opted = OneSignal.User.PushSubscription.optedIn;
+            promptBtn.style.display = (perm !== 'granted' || !opted) ? 'block' : 'none';
+          } catch {}
+        }
+        promptBtn.addEventListener('click', async () => {
+          try {
+            await OneSignal.Notifications.requestPermission(true);
+            await OneSignal.User.PushSubscription.optIn();
+            console.log('OneSignal Web: optIn solicitado via botão');
+          } catch (e) {
+            console.log('OneSignal Web: erro ao solicitar via botão', e);
+          } finally {
+            refreshPromptBtn();
+          }
+        });
+
         // Tenta solicitar subscrição explicitamente
         // Nota: Browsers podem bloquear se não houver interação do usuário, mas o notifyButton ajuda
-        if (OneSignal.User.PushSubscription.optedIn === false) {
-             console.log("Solicitando optIn...");
-             OneSignal.User.PushSubscription.optIn();
+        try {
+          const perm = await OneSignal.Notifications.permission;
+          console.log('OneSignal Web: permission=', perm);
+          if (perm === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
+            console.log("Solicitando optIn...");
+            await OneSignal.User.PushSubscription.optIn();
+            console.log("OneSignal Web: optIn solicitado");
+          }
+          console.log('OneSignal Web: optedIn=', OneSignal.User.PushSubscription.optedIn);
+        } catch (e) {
+          console.log('OneSignal Web: erro ao verificar/optar subscrição', e);
         }
+        refreshPromptBtn();
 
         // Listener para mudanças no localStorage (quando o Flutter salva o ID)
         let lastUid = uid;
@@ -98,9 +128,14 @@
              await OneSignal.login(currentUid);
              lastUid = currentUid;
              
-             if (OneSignal.User.PushSubscription.optedIn === false) {
-                OneSignal.User.PushSubscription.optIn();
-             }
+             try {
+               const permNow = await OneSignal.Notifications.permission;
+               if (permNow === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
+                  await OneSignal.User.PushSubscription.optIn();
+                  console.log('OneSignal Web: optIn solicitado após ID atualizado');
+               }
+             } catch {}
+             refreshPromptBtn();
            }
         }, 2000); // Verifica a cada 2 segundos
 
@@ -113,5 +148,9 @@
   <script src="flutter_bootstrap.js" async></script>
 </head>
 <body>
+  <button id="onesignal-activate-btn"
+    style="position:fixed; bottom:12px; right:12px; z-index:9999; display:none; padding:8px 12px; background:#0175C2; color:#fff; border:none; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.2); font-size:12px; cursor:pointer;">
+    Ativar notificações
+  </button>
   </body>
 </html>
