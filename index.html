@@ -82,7 +82,8 @@
           try {
             const perm = await OneSignal.Notifications.permission;
             const opted = OneSignal.User.PushSubscription.optedIn;
-            promptBtn.style.display = (perm !== 'granted' || !opted) ? 'block' : 'none';
+            const hasUid = !!(localStorage.getItem('flutter.userId') || localStorage.getItem('userId') || localStorage.getItem('flutter.isAdmin'));
+            promptBtn.style.display = hasUid ? 'none' : ((perm !== 'granted' || !opted) ? 'block' : 'none');
           } catch {}
         }
         promptBtn.addEventListener('click', async () => {
