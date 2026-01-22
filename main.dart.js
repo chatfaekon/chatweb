@@ -51028,7 +51028,7 @@ alp(){var s=$.aO,r=(s==null?$.aO=$.c7():s).c8("[DEFAULT]")
 A.b8(r,$.cm(),!0)
 A.dA(new A.bQ(r)).cu("quick_messages").yN("text").j1().eV(new A.ayF(this))},
 BN(a){return this.apN(a)},
-apN(a){var s=0,r=A.r(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e
+apN(a){var s=0,r=A.r(t.H),q,p=2,o=[],n=this,m,l,k,j,i,h,g,f,e,d
 var $async$BN=A.n(function(b,c){if(b===1){o.push(c)
 s=p}for(;;)switch(s){case 0:p=4
 i=n.a
@@ -51037,9 +51037,9 @@ l=A.fK("https://delicate-morning-1bc8.games-drze.workers.dev",0,null)
 i=t.N
 h=A.a2(["Content-Type","application/json; charset=utf-8"],i,i)
 g=n.a
-g=g.e?g.c:"admin"
+f=g.e?g.c:"admin"
 s=7
-return A.k(A.bfG(l,B.cz.a0q(A.a2(["title",m,"message",a,"externalId",g],i,i),null),h),$async$BN)
+return A.k(A.bfG(l,B.cz.a0q(A.a2(["title",m,"message",a,"externalId",f,"data",A.a2(["userId",g.c],i,i),"userId",n.a.c],i,t.K),null),h),$async$BN)
 case 7:k=c
 h=k
 A.N2().$1("Cloudflare Worker resp: "+k.b+" "+A.aP9(A.aOH(h.e)).fI(h.w))
@@ -51047,8 +51047,8 @@ p=2
 s=6
 break
 case 4:p=3
-e=o.pop()
-j=A.a3(e)
+d=o.pop()
+j=A.a3(d)
 A.N2().$1("WEB notification error: "+A.j(j))
 s=6
 break
