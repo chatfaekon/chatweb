@@ -103,6 +103,33 @@
           console.log('OneSignal Web: erro ao verificar/optar subscrição', e);
         }
 
+        // --- SILENCIAMENTO NO WEB ADMIN ---
+        OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event) => {
+          console.log("OneSignal Web: Notificação em foreground recebida");
+          
+          const activeChatIdRaw = localStorage.getItem('flutter.activeChatId');
+          const activeChatId = cleanUserId(activeChatIdRaw);
+          const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
+                          localStorage.getItem('flutter.isAdmin') === '"true"';
+
+          if (activeChatId) {
+            const notificationData = event.notification.additionalData;
+            const senderId = notificationData ? notificationData.userId : null;
+            
+            if (isAdmin) {
+              // Admin: silencia se for do chat que está aberto
+              if (senderId === activeChatId) {
+                console.log("🔕 OneSignal Web: Silenciando notificação do chat ativo:", activeChatId);
+                event.preventDefault();
+              }
+            } else {
+              // Cliente: silencia qualquer notificação se o chat estiver aberto
+              console.log("🔕 OneSignal Web: Silenciando notificação (Cliente com chat aberto)");
+              event.preventDefault();
+            }
+          }
+        });
+
         // Listener para mudanças no localStorage (quando o Flutter salva o ID)
         let lastUid = uid;
         setInterval(async () => {
