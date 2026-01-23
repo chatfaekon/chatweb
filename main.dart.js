@@ -51035,7 +51035,7 @@ s=p.gfe()
 if(s.length===0)return B.PS
 p=this.a
 r=t.o
-return A.dQ(A.b([new A.c0(B.cm,A.dI(A.b([A.f6(A.Qj(B.UR,B.aSt,new A.a7j(p,a,s),q)),B.dM,A.f6(A.Qj(B.v8,B.aSF,new A.a7k(p,s),q))],r),B.a9,B.ad,B.aq,0),q),B.jo,A.f6(A.S5(q,q,q,new A.a7l(s),s.length,!1,!1))],r),B.a9,B.ad,B.aq)},
+return A.dQ(A.b([new A.c0(B.cm,A.dI(A.b([A.f6(A.Qj(B.UR,B.aSt,new A.a7j(p,a,s),q)),B.dM,A.f6(A.Qj(B.v8,B.aSG,new A.a7k(p,s),q))],r),B.a9,B.ad,B.aq,0),q),B.jo,A.f6(A.S5(q,q,q,new A.a7l(s),s.length,!1,!1))],r),B.a9,B.ad,B.aq)},
 $S:106}
 A.a7j.prototype={
 $0(){return this.a.Bh(this.b,this.c)},
@@ -51312,7 +51312,7 @@ if(p.y&&p.z.a!==0)r.push(A.dG(o,o,o,B.UV,o,o,p.gadz(),o,o,o,"Arquivar Selecionad
 B.l.O(l,r)}l.push(A.dG(o,o,o,B.UW,o,o,p.garB(),o,o,o,"Feedbacks",o))
 l.push(A.dG(o,o,o,B.V0,o,o,p.gamV(),o,o,o,"Sair",o))
 n=A.O9(l,o,o,o,n,o)
-l=A.f6(A.Qj(B.UU,B.aSN,new A.axJ(p),A.aOB(o,o,p.x==="ativos"?B.b1:B.cP,o,o,o,o,o,o,B.I,o,o,o,o,o,o,o,o,o,o)))
+l=A.f6(A.Qj(B.UU,B.aSO,new A.axJ(p),A.aOB(o,o,p.x==="ativos"?B.b1:B.cP,o,o,o,o,o,o,B.I,o,o,o,o,o,o,o,o,o,o)))
 return A.ys(n,o,A.dQ(A.b([A.d_(o,A.dI(A.b([l,B.dM,A.f6(A.Qj(B.UM,B.aT1,new A.axK(p),A.aOB(o,o,p.x==="arquivados"?B.lv:B.cP,o,o,o,o,o,o,B.I,o,o,o,o,o,o,o,o,o,o)))],m),B.a9,B.ad,B.aq,0),B.W,o,o,o,o,o,o,B.cm,o,o,o),A.f6(A.uC(new A.axL(p),o,p.e.iE(),t.cG))],m),B.a9,B.ad,B.aq),o,o,o)}}
 A.axd.prototype={
 $1(a){return B.Mk},
@@ -51398,7 +51398,7 @@ return A.q($async$$0,r)},
 $S:6}
 A.ax0.prototype={
 $1(a){var s=null,r=A.bw("Deseja arquivar "+this.b+" conversa(s)?\n\nElas ficar\xe3o ocultas na lista principal mas poder\xe3o ser restauradas.",s,s,s,s,s,s,s),q=this.a
-return A.O2(A.b([A.lQ(!1,B.iv,s,s,s,s,s,s,new A.awZ(q),s,s),A.D6(!1,B.aSE,s,s,s,s,s,s,new A.ax_(q),s,s)],t.o),r,B.aSW)},
+return A.O2(A.b([A.lQ(!1,B.iv,s,s,s,s,s,s,new A.awZ(q),s,s),A.D6(!1,B.aSF,s,s,s,s,s,s,new A.ax_(q),s,s)],t.o),r,B.aSW)},
 $S:80}
 A.awZ.prototype={
 $0(){var s=this.a.c
@@ -51511,7 +51511,7 @@ o=r.a(o).h(0,"rating")
 q+=o==null?0:o}l=A.hg(12)
 r=A.aSG(B.nr,1)
 n=t.o
-return A.dQ(A.b([A.d_(m,A.dI(A.b([A.dQ(A.b([B.aSz,A.dI(A.b([B.UY,B.ma,A.bw(B.r.af(q/o,1),m,m,m,m,B.LU,m,m)],n),B.a9,B.ad,B.aq,0)],n),B.a9,B.ad,B.aq),A.d_(m,m,B.W,B.nr,m,m,m,40,m,m,m,m,1),A.dQ(A.b([B.aSs,A.bw(B.z.j(o),m,m,m,m,B.LU,m,m)],n),B.a9,B.ad,B.aq)],n),B.a9,B.pI,B.aq,0),B.W,m,m,new A.cO(B.tn,m,r,l,m,m,B.bk),m,m,B.nO,B.jt,m,m,m),A.f6(A.S5(m,this.a,m,new A.axf(s),s.length,!1,!1))],n),B.a9,B.ad,B.aq)},
+return A.dQ(A.b([A.d_(m,A.dI(A.b([A.dQ(A.b([B.aSA,A.dI(A.b([B.UY,B.ma,A.bw(B.r.af(q/o,1),m,m,m,m,B.LU,m,m)],n),B.a9,B.ad,B.aq,0)],n),B.a9,B.ad,B.aq),A.d_(m,m,B.W,B.nr,m,m,m,40,m,m,m,m,1),A.dQ(A.b([B.aSs,A.bw(B.z.j(o),m,m,m,m,B.LU,m,m)],n),B.a9,B.ad,B.aq)],n),B.a9,B.pI,B.aq,0),B.W,m,m,new A.cO(B.tn,m,r,l,m,m,B.bk),m,m,B.nO,B.jt,m,m,m),A.f6(A.S5(m,this.a,m,new A.axf(s),s.length,!1,!1))],n),B.a9,B.ad,B.aq)},
 $S:106}
 A.axf.prototype={
 $2(a,b){var s,r,q,p,o,n,m,l,k,j=null,i=this.a[b].hw()
@@ -52523,7 +52523,7 @@ i.toString
 s=A.bO(i,j,t.w).w.gm3()===B.lC
 i=t.o
 r=A.b([k.SA()],i)
-if(k.dx==="closed"&&!k.a.e)r.push(new A.c0(B.Tf,A.baB(B.V8,B.aSx,k.gXn()),j))
+if(k.dx==="closed"&&!k.a.e)r.push(new A.c0(B.Tf,A.baB(B.V8,B.aSy,k.gXn()),j))
 q=k.fr
 if(q!=null)B.l.O(r,A.b([A.d_(j,A.dI(A.b([B.UX,B.dM,A.f6(A.bw("Respondendo a: "+q,1,B.bq,j,j,B.aP5,j,j)),A.dG(j,j,j,B.UH,j,j,new A.azw(k),j,j,j,j,j)],i),B.a9,B.ad,B.aq,0),B.W,B.nq,j,j,j,j,j,B.nO,j,j,j)],i))
 q=s?4:6
@@ -52720,7 +52720,7 @@ this.a.dy=s},
 $S:0}
 A.aAc.prototype={
 $1(a){var s=null,r=this.a
-return A.lB(!0,A.awv(A.b([A.ho(!1,s,s,s,!0,s,!0,s,B.Vi,s,new A.aA9(r),!1,s,s,s,s,s,B.aT_,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.UE,s,new A.aAa(r),!1,s,s,s,s,s,B.aSu,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.V3,s,new A.aAb(r),!1,s,s,s,s,s,B.aSO,s,s,s)],t.o)),B.au,!0)},
+return A.lB(!0,A.awv(A.b([A.ho(!1,s,s,s,!0,s,!0,s,B.Vi,s,new A.aA9(r),!1,s,s,s,s,s,B.aT_,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.UE,s,new A.aAa(r),!1,s,s,s,s,s,B.aSu,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.V3,s,new A.aAb(r),!1,s,s,s,s,s,B.aSP,s,s,s)],t.o)),B.au,!0)},
 $S:115}
 A.aA9.prototype={
 $0(){var s=0,r=A.r(t.H),q=this,p,o,n,m
@@ -52946,9 +52946,9 @@ q=s.Q
 if(q!=null)q.rI(A.d8(0,B.r.dI(r*B.z.bG(s.ay.a,1000)),0))}},
 $S:19}
 A.aAz.prototype={
-$1(a){var s=this,r=null,q=s.a,p=s.b,o=s.c,n=A.b([A.ho(!1,r,r,r,!0,r,!0,r,B.UI,r,new A.aAv(q,p,o),!1,r,r,r,r,r,B.aSM,r,r,r),A.ho(!1,r,r,r,!0,r,!0,r,B.Vk,r,new A.aAw(p,o),!1,r,r,r,r,r,B.aT0,r,r,r)],t.o),m=s.d
+$1(a){var s=this,r=null,q=s.a,p=s.b,o=s.c,n=A.b([A.ho(!1,r,r,r,!0,r,!0,r,B.UI,r,new A.aAv(q,p,o),!1,r,r,r,r,r,B.aSN,r,r,r),A.ho(!1,r,r,r,!0,r,!0,r,B.Vk,r,new A.aAw(p,o),!1,r,r,r,r,r,B.aT0,r,r,r)],t.o),m=s.d
 if(m&&!s.e)n.push(A.ho(!1,r,r,r,!0,r,!0,r,B.Vj,r,new A.aAx(q,p,s.f,o),!1,r,r,r,r,r,B.aSp,r,r,r))
-if(m)n.push(A.ho(!1,r,r,r,!0,r,!0,r,B.UO,r,new A.aAy(p,s.f),!1,r,r,r,r,r,B.aSG,r,r,r))
+if(m)n.push(A.ho(!1,r,r,r,!0,r,!0,r,B.UO,r,new A.aAy(p,s.f),!1,r,r,r,r,r,B.aSH,r,r,r))
 return A.lB(!0,A.awv(n),B.au,!0)},
 $S:115}
 A.aAv.prototype={
@@ -52981,7 +52981,7 @@ this.b.grl().a.n_()},
 $S:0}
 A.azU.prototype={
 $1(a){var s=null,r=this.a,q=A.nu(!0,r,B.VM,s,s,s,1,s,!1,s,s,B.qE,s)
-return A.O2(A.b([A.lQ(!1,B.iv,s,s,s,s,s,s,new A.azS(a),s,s),A.lQ(!1,B.qL,s,s,s,s,s,s,new A.azT(r,this.b,a),s,s)],t.o),q,B.aSy)},
+return A.O2(A.b([A.lQ(!1,B.iv,s,s,s,s,s,s,new A.azS(a),s,s),A.lQ(!1,B.qL,s,s,s,s,s,s,new A.azT(r,this.b,a),s,s)],t.o),q,B.aSz)},
 $S:80}
 A.azS.prototype={
 $0(){A.ch(this.a,!1).dP(null)
@@ -53004,7 +53004,7 @@ return A.q($async$$0,r)},
 $S:6}
 A.aAm.prototype={
 $1(a){var s=null,r=this.a
-return A.lB(!0,A.awv(A.b([A.ho(!1,s,s,s,!0,s,!0,s,B.v9,s,new A.aAj(r),!1,s,s,s,s,s,B.aT6,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.v8,s,new A.aAk(r),!1,s,s,s,s,s,B.aSm,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.Vh,s,new A.aAl(r),!1,s,s,s,s,s,B.aSL,s,s,s),B.jo,A.ho(!1,s,s,s,!0,s,!0,s,B.UZ,s,s,!1,s,s,s,s,s,B.aSI,s,A.bw(r.p2,s,s,s,s,B.aQO,s,s),s)],t.o)),B.au,!0)},
+return A.lB(!0,A.awv(A.b([A.ho(!1,s,s,s,!0,s,!0,s,B.v9,s,new A.aAj(r),!1,s,s,s,s,s,B.aT6,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.v8,s,new A.aAk(r),!1,s,s,s,s,s,B.aSm,s,s,s),A.ho(!1,s,s,s,!0,s,!0,s,B.Vh,s,new A.aAl(r),!1,s,s,s,s,s,B.aSM,s,s,s),B.jo,A.ho(!1,s,s,s,!0,s,!0,s,B.UZ,s,s,!1,s,s,s,s,s,B.aSJ,s,A.bw(r.p2,s,s,s,s,B.aQO,s,s),s)],t.o)),B.au,!0)},
 $S:115}
 A.aAj.prototype={
 $0(){var s=this.a,r=s.c
@@ -53398,7 +53398,7 @@ r===$&&A.a()
 q=o.w
 q===$&&A.a()
 p=t.o
-return A.ys(n,n,A.iS(B.cj,A.b([A.d_(n,A.lB(!0,A.dQ(A.b([new A.cz(m,!1,s,n),B.aMz,new A.cz(r,!1,A.nl(new A.c0(B.Tu,A.dQ(A.b([A.e1(A.D6(!1,B.aSP,n,n,n,n,n,n,new A.aKL(a),n,n),48,1/0),B.mb,A.e1(new A.SY(new A.aKM(a),n,n,n,A.aVB(n,n,n,n,n,n,n,n,n,B.I,n,n,n,n,n,B.Nz,n,n,n,n),n,n,!1,n,!0,n,B.aSq,n),48,1/0)],p),B.a9,B.ad,B.aq),n),q,n,!0),n)],p),B.a9,B.ee,B.aq),B.au,!0),B.W,n,n,B.NL,n,n,n,n,n,n,1/0),A.kp(20,A.bw(o.x,n,n,n,n,B.aRX,n,n),n,n,20,n,n,n)],p),B.a5,B.cd,n),n,n,n)}}
+return A.ys(n,n,A.iS(B.cj,A.b([A.d_(n,A.lB(!0,A.dQ(A.b([new A.cz(m,!1,s,n),B.aMz,new A.cz(r,!1,A.nl(new A.c0(B.Tu,A.dQ(A.b([A.e1(A.D6(!1,B.aSx,n,n,n,n,n,n,new A.aKL(a),n,n),48,1/0),B.mb,A.e1(new A.SY(new A.aKM(a),n,n,n,A.aVB(n,n,n,n,n,n,n,n,n,B.I,n,n,n,n,n,B.Nz,n,n,n,n),n,n,!1,n,!0,n,B.aSq,n),48,1/0)],p),B.a9,B.ad,B.aq),n),q,n,!0),n)],p),B.a9,B.ee,B.aq),B.au,!0),B.W,n,n,B.NL,n,n,n,n,n,n,1/0),A.kp(20,A.bw(o.x,n,n,n,n,B.aRX,n,n),n,n,20,n,n,n)],p),B.a5,B.cd,n),n,n,n)}}
 A.aKI.prototype={
 $0(){this.a.x="v"+this.b.c},
 $S:0}
@@ -112844,10 +112844,10 @@ B.aSU=new A.bg("Nenhuma m\xeddia dispon\xedvel.",null,B.aRN,null,null,null,null,
 B.aCz=s([B.Vl,B.aMx,B.aSU],t.o)
 B.RO=new A.mj(B.aQ,B.ee,B.aq,B.a9,null,B.d9,null,0,B.aCz,null)
 B.PR=new A.io(B.at,null,null,B.RO,null)
-B.aSC=new A.bg("Nenhum cliente cadastrado",null,null,null,null,null,null,null,null,null)
-B.PS=new A.io(B.at,null,null,B.aSC,null)
-B.aSH=new A.bg("Nenhuma avalia\xe7\xe3o encontrada.",null,null,null,null,null,null,null,null,null)
-B.PT=new A.io(B.at,null,null,B.aSH,null)
+B.aSD=new A.bg("Nenhum cliente cadastrado",null,null,null,null,null,null,null,null,null)
+B.PS=new A.io(B.at,null,null,B.aSD,null)
+B.aSI=new A.bg("Nenhuma avalia\xe7\xe3o encontrada.",null,null,null,null,null,null,null,null,null)
+B.PT=new A.io(B.at,null,null,B.aSI,null)
 B.aX7=new A.awQ(0,"material")
 B.Q6=new A.wb(null,null,null)
 B.eE=new A.io(B.at,null,null,B.Q6,null)
@@ -118297,14 +118297,14 @@ B.lI=new A.y1(0,"none")
 B.aJE=new A.y1(1,"scroll")
 B.aJF=new A.y1(3,"scale")
 B.aJG=new A.y1(4,"unknown")
-B.aSB=new A.bg("Encerrado",null,null,null,null,null,null,null,null,null)
-B.aJH=new A.po("encerrado",B.aSB,null,t.wI)
+B.aSC=new A.bg("Encerrado",null,null,null,null,null,null,null,null,null)
+B.aJH=new A.po("encerrado",B.aSC,null,t.wI)
 B.aT5=new A.bg("Finalizado",null,null,null,null,null,null,null,null,null)
 B.aJI=new A.po("conclu\xeddo",B.aT5,null,t.wI)
-B.aSA=new A.bg("Aguardando",null,null,null,null,null,null,null,null,null)
-B.aJJ=new A.po("pendente",B.aSA,null,t.wI)
-B.aSD=new A.bg("Em atendimento",null,null,null,null,null,null,null,null,null)
-B.aJK=new A.po("em atendimento",B.aSD,null,t.wI)
+B.aSB=new A.bg("Aguardando",null,null,null,null,null,null,null,null,null)
+B.aJJ=new A.po("pendente",B.aSB,null,t.wI)
+B.aSE=new A.bg("Em atendimento",null,null,null,null,null,null,null,null,null)
+B.aJK=new A.po("em atendimento",B.aSE,null,t.wI)
 B.aJL=new A.y5(null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.K5=new A.u2(1,"inAppWebView")
 B.K6=new A.u2(2,"inAppBrowserView")
@@ -118638,14 +118638,14 @@ B.aMI=new A.lH(3,"hide")
 B.aX5=new A.lH(4,"remove")
 B.aMJ=new A.lH(5,"timeout")
 B.aMK=new A.yL(null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.aSJ=new A.bg("Senha incorreta",null,null,null,null,null,null,null,null,null)
-B.aML=new A.iR(B.aSJ,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
+B.aSK=new A.bg("Senha incorreta",null,null,null,null,null,null,null,null,null)
+B.aML=new A.iR(B.aSK,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
 B.aSZ=new A.bg("Preencha o nome e selecione pelo menos um membro",null,null,null,null,null,null,null,null,null)
 B.aMM=new A.iR(B.aSZ,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
 B.aSl=new A.bg("Conversa limpa com sucesso.",null,null,null,null,null,null,null,null,null)
 B.aMN=new A.iR(B.aSl,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
-B.aSK=new A.bg("Preencha todos os campos",null,null,null,null,null,null,null,null,null)
-B.aMO=new A.iR(B.aSK,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
+B.aSL=new A.bg("Preencha todos os campos",null,null,null,null,null,null,null,null,null)
+B.aMO=new A.iR(B.aSL,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
 B.aSX=new A.bg("Informe a senha",null,null,null,null,null,null,null,null,null)
 B.aMP=new A.iR(B.aSX,null,null,null,null,null,null,null,null,null,null,null,null,B.bB,!1,null,null,null,B.a5,null)
 B.aT7=new A.bg("Conversa restaurada com sucesso!",null,null,null,null,null,null,null,null,null)
@@ -119064,21 +119064,21 @@ B.aSu=new A.bg("Galeria",null,null,null,null,null,null,null,null,null)
 B.aSv=new A.bg("Reabrir Chat",null,null,null,null,null,null,null,null,null)
 B.aPn=new A.w(!0,null,null,null,null,null,16,B.bg,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
 B.aSw=new A.bg("Como voc\xea avalia nosso atendimento?",null,B.aPn,null,null,null,null,null,null,null)
+B.aSx=new A.bg("Sou Cliente",null,B.iu,null,null,null,null,null,null,null)
 B.aQC=new A.w(!0,B.b1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null,null)
-B.aSx=new A.bg("Reabrir Chat",null,B.aQC,null,null,null,null,null,null,null)
-B.aSy=new A.bg("Editar mensagem",null,null,null,null,null,null,null,null,null)
-B.aSz=new A.bg("M\xe9dia Geral",null,B.LR,null,null,null,null,null,null,null)
-B.aSE=new A.bg("Arquivar",null,null,null,null,null,null,null,null,null)
-B.aSF=new A.bg("Compartilhar",null,null,null,null,null,null,null,null,null)
-B.aSG=new A.bg("Excluir",null,null,null,null,null,null,null,null,null)
-B.aSI=new A.bg("Vers\xe3o do Sistema",null,null,null,null,null,null,null,null,null)
+B.aSy=new A.bg("Reabrir Chat",null,B.aQC,null,null,null,null,null,null,null)
+B.aSz=new A.bg("Editar mensagem",null,null,null,null,null,null,null,null,null)
+B.aSA=new A.bg("M\xe9dia Geral",null,B.LR,null,null,null,null,null,null,null)
+B.aSF=new A.bg("Arquivar",null,null,null,null,null,null,null,null,null)
+B.aSG=new A.bg("Compartilhar",null,null,null,null,null,null,null,null,null)
+B.aSH=new A.bg("Excluir",null,null,null,null,null,null,null,null,null)
+B.aSJ=new A.bg("Vers\xe3o do Sistema",null,null,null,null,null,null,null,null,null)
 B.qL=new A.bg("Salvar",null,null,null,null,null,null,null,null,null)
-B.aSL=new A.bg("Limpar Chat",null,null,null,null,null,null,null,null,null)
-B.aSM=new A.bg("Responder",null,null,null,null,null,null,null,null,null)
-B.aSN=new A.bg("Chats Ativos",null,null,null,null,null,null,null,null,null)
-B.aSO=new A.bg("Documento",null,null,null,null,null,null,null,null,null)
+B.aSM=new A.bg("Limpar Chat",null,null,null,null,null,null,null,null,null)
+B.aSN=new A.bg("Responder",null,null,null,null,null,null,null,null,null)
+B.aSO=new A.bg("Chats Ativos",null,null,null,null,null,null,null,null,null)
+B.aSP=new A.bg("Documento",null,null,null,null,null,null,null,null,null)
 B.LW=new A.bg("Clientes",null,null,null,null,null,null,null,null,null)
-B.aSP=new A.bg("TIRIRICA",null,B.iu,null,null,null,null,null,null,null)
 B.aSS=new A.bg("Acesso do Admin",null,null,null,null,null,null,null,null,null)
 B.aST=new A.bg("Remover",null,null,null,null,null,null,null,null,null)
 B.aSV=new A.bg("Criar Grupo",null,null,null,null,null,null,null,null,null)
