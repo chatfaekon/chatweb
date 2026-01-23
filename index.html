@@ -1,175 +1,148 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <base href="/chatweb/">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <meta name="theme-color" content="#0175C2">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="Faekon Suporte">
-  <meta name="flutter-web-renderer" content="html">
-  <meta http-equiv="Content-Security-Policy" content="default-src * self blob: data: gap:; style-src * self 'unsafe-inline' blob: data: gap:; script-src * 'self' 'unsafe-eval' 'unsafe-inline' data: blob: gap:; img-src * self 'unsafe-inline' blob: data: gap:; connect-src * self blob: data: gap:; font-src * self data: blob: gap:;">
-  
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="favicon.png">
-  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+    <meta charset="UTF-8">
+    <base href="/chatweb/">
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0175C2">
 
-  <title>Faekon Suporte</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Faekon Suporte">
+    <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script>
-    window.flutterWebRenderer = "html";
-  </script>
-  <script>
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "61e6874c-bca0-4628-ad07-8053c0cd499e", // REVISE: Coloque aqui o ID do OneSignal
-        safari_web_id: "SEU_SAFARI_ID_AQUI", // Opcional
-        serviceWorkerPath: "/chatweb/OneSignalSDK.sw.js",
-        notifyButton: {
-          enable: false,
-          position: 'bottom-right',
-          theme: 'default',
-          text: {
-            'tip.state.unsubscribed': 'Inscreva-se para notificações',
-            'tip.state.subscribed': "Você está inscrito",
-            'tip.state.blocked': "Você bloqueou as notificações",
-            'message.prenotify': 'Clique para receber alertas de novas mensagens',
-          }
-        },
-        allowLocalhostAsSecureOrigin: true,
-      });
+    <meta name="flutter-web-renderer" content="html">
+    <meta http-equiv="Content-Security-Policy" content="default-src * self blob: data: gap:; style-src * self 'unsafe-inline' blob: data: gap:; script-src * 'self' 'unsafe-eval' 'unsafe-inline' data: blob: gap:; img-src * self 'unsafe-inline' blob: data: gap:; connect-src * self blob: data: gap:; font-src * self data: blob: gap:;">
 
-      // Função auxiliar para limpar o ID (remover aspas extras do SharedPreferences)
-      function cleanUserId(id) {
-        if (!id) return null;
-        if (id.startsWith('"') && id.endsWith('"')) {
-          return id.slice(1, -1);
-        }
-        return id;
-      }
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="favicon.png">
 
-      // Função global para forçar login (útil para debug ou chamada externa)
-      window.forceOneSignalLogin = async function(rawId) {
-        const id = cleanUserId(rawId);
-        if (id) {
-          console.log("Forçando login OneSignal com ID:", id);
-          await OneSignal.login(id);
-          console.log("Login efetuado para:", id);
-        }
-      };
+    <title>Faekon Suporte</title>
 
-      try {
-        await OneSignal.Notifications.requestPermission(true);
-        let rawUid = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
-        let uid = cleanUserId(rawUid);
-        
-        // Verifica se é admin
-        const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
-                        localStorage.getItem('flutter.isAdmin') === '"true"';
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+        window.flutterWebRenderer = "html";
+    </script>
+    <script>
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+          // Verifica se está rodando como "App" no iPhone para forçar o OneSignal a pedir permissão
+          const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 
-        if (isAdmin) {
-          uid = 'admin';
-        }
-
-        if (uid) {
-          await OneSignal.login(uid);
-          console.log('OneSignal Web: external_id inicial definido para', uid);
-        } else {
-          console.log('OneSignal Web: aguardando userId...');
-        }
-        
-        // Tenta solicitar subscrição explicitamente
-        // Nota: Browsers podem bloquear se não houver interação do usuário, mas o notifyButton ajuda
-        try {
-          const perm = await OneSignal.Notifications.permission;
-          console.log('OneSignal Web: permission=', perm);
-          if (perm === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
-            console.log("Solicitando optIn...");
-            await OneSignal.User.PushSubscription.optIn();
-            console.log("OneSignal Web: optIn solicitado");
-          }
-          console.log('OneSignal Web: optedIn=', OneSignal.User.PushSubscription.optedIn);
-          if (perm === 'granted') {
-            if (navigator && navigator.serviceWorker && navigator.serviceWorker.controller) {
-              navigator.serviceWorker.controller.postMessage({type:'CLOSE_ALL'});
-              console.log('OneSignal Web: solicitada limpeza de notificações via SW');
-            }
-          }
-        } catch (e) {
-          console.log('OneSignal Web: erro ao verificar/optar subscrição', e);
-        }
-
-        // --- SILENCIAMENTO NO WEB ADMIN ---
-        OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event) => {
-          console.log("OneSignal Web: Notificação em foreground recebida");
-          
-          const activeChatIdRaw = localStorage.getItem('flutter.activeChatId');
-          const activeChatId = cleanUserId(activeChatIdRaw);
-          const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
-                          localStorage.getItem('flutter.isAdmin') === '"true"';
-
-          if (activeChatId) {
-            const notificationData = event.notification.additionalData;
-            const senderId = notificationData ? notificationData.userId : null;
-            
-            if (isAdmin) {
-              // Admin: silencia se for do chat que está aberto
-              if (senderId === activeChatId) {
-                console.log("🔕 OneSignal Web: Silenciando notificação do chat ativo:", activeChatId);
-                event.preventDefault();
+          await OneSignal.init({
+            appId: "61e6874c-bca0-4628-ad07-8053c0cd499e",
+            safari_web_id: undefined,
+            serviceWorkerPath: "/chatweb/OneSignalSDK.sw.js",
+            notifyButton: {
+              enable: isStandalone, // Ativa o botão de sino apenas se estiver "instalado" no iPhone
+              position: 'bottom-right',
+              theme: 'default',
+              text: {
+                'tip.state.unsubscribed': 'Inscreva-se para notificações',
+                'tip.state.subscribed': "Você está inscrito",
+                'tip.state.blocked': "Você bloqueou as notificações",
+                'message.prenotify': 'Clique para receber alertas de novas mensagens',
               }
-            } else {
-              // Cliente: silencia qualquer notificação se o chat estiver aberto
-              console.log("🔕 OneSignal Web: Silenciando notificação (Cliente com chat aberto)");
-              event.preventDefault();
+            },
+            allowLocalhostAsSecureOrigin: true,
+          });
+
+          function cleanUserId(id) {
+            if (!id) return null;
+            if (id.startsWith('"') && id.endsWith('"')) {
+              return id.slice(1, -1);
             }
+            return id;
+          }
+
+          window.forceOneSignalLogin = async function(rawId) {
+            const id = cleanUserId(rawId);
+            if (id) {
+              console.log("Forçando login OneSignal com ID:", id);
+              await OneSignal.login(id);
+              console.log("Login efetuado para:", id);
+            }
+          };
+
+          try {
+            // No iOS Standalone, precisamos de uma interação ou verificação forte
+            if (isStandalone) {
+              await OneSignal.Notifications.requestPermission();
+            }
+
+            let rawUid = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
+            let uid = cleanUserId(rawUid);
+
+            const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
+                            localStorage.getItem('flutter.isAdmin') === '"true"';
+
+            if (isAdmin) {
+              uid = 'admin';
+            }
+
+            if (uid) {
+              await OneSignal.login(uid);
+              console.log('OneSignal Web: external_id inicial definido para', uid);
+            }
+
+            try {
+              const perm = await OneSignal.Notifications.permission;
+              if (perm === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
+                await OneSignal.User.PushSubscription.optIn();
+              }
+              if (perm === 'granted') {
+                if (navigator && navigator.serviceWorker && navigator.serviceWorker.controller) {
+                  navigator.serviceWorker.controller.postMessage({type:'CLOSE_ALL'});
+                }
+              }
+            } catch (e) {
+              console.log('OneSignal Web: erro ao verificar subscrição', e);
+            }
+
+            OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event) => {
+              const activeChatIdRaw = localStorage.getItem('flutter.activeChatId');
+              const activeChatId = cleanUserId(activeChatIdRaw);
+              const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
+                              localStorage.getItem('flutter.isAdmin') === '"true"';
+
+              if (activeChatId) {
+                const notificationData = event.notification.additionalData;
+                const senderId = notificationData ? notificationData.userId : null;
+
+                if (isAdmin) {
+                  if (senderId === activeChatId) {
+                    event.preventDefault();
+                  }
+                } else {
+                  event.preventDefault();
+                }
+              }
+            });
+
+            let lastUid = uid;
+            setInterval(async () => {
+               let currentRaw = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
+               let currentUid = cleanUserId(currentRaw);
+               const currentIsAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
+                                      localStorage.getItem('flutter.isAdmin') === '"true"';
+               if (currentIsAdmin) currentUid = 'admin';
+
+               if (currentUid && currentUid !== lastUid) {
+                 await OneSignal.login(currentUid);
+                 lastUid = currentUid;
+               }
+            }, 2000);
+
+          } catch (e) {
+            console.log('OneSignal Web: erro ao configurar', e);
           }
         });
+    </script>
 
-        // Listener para mudanças no localStorage (quando o Flutter salva o ID)
-        let lastUid = uid;
-        setInterval(async () => {
-           let currentRaw = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
-           let currentUid = cleanUserId(currentRaw);
-           
-           const currentIsAdmin = localStorage.getItem('flutter.isAdmin') === 'true' || 
-                                  localStorage.getItem('flutter.isAdmin') === '"true"';
-           
-           if (currentIsAdmin) currentUid = 'admin';
-
-           if (currentUid && currentUid !== lastUid) {
-             console.log('OneSignal Web: ID alterado/detectado:', currentUid);
-             await OneSignal.login(currentUid);
-             lastUid = currentUid;
-             
-             try {
-               const permNow = await OneSignal.Notifications.permission;
-               if (permNow === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
-                  await OneSignal.User.PushSubscription.optIn();
-                  console.log('OneSignal Web: optIn solicitado após ID atualizado');
-               }
-               if (permNow === 'granted') {
-                 if (navigator && navigator.serviceWorker && navigator.serviceWorker.controller) {
-                   navigator.serviceWorker.controller.postMessage({type:'CLOSE_ALL'});
-                   console.log('OneSignal Web: solicitada limpeza de notificações via SW (ID atualizado)');
-                 }
-               }
-             } catch {}
-           }
-        }, 2000); // Verifica a cada 2 segundos
-
-      } catch (e) {
-        console.log('OneSignal Web: erro ao configurar', e);
-      }
-    });
-  </script>
-
-  <script src="flutter_bootstrap.js" async></script>
+    <script src="flutter_bootstrap.js" async></script>
 </head>
 <body>
-  </body>
+</body>
 </html>
