@@ -9,7 +9,7 @@ const RESOURCES = {"assets/AssetManifest.bin": "79b85b7474ee8deb4412c082b0a80067
 "assets/assets/logo.png": "bb2dd4c361d5d61ee223e0e513e22f59",
 "assets/assets/logo_launcher.png": "bb2dd4c361d5d61ee223e0e513e22f59",
 "assets/FontManifest.json": "7b2a36307916a9721811788013e65289",
-"assets/fonts/MaterialIcons-Regular.otf": "c291dbc241450b40ac541ee977665183",
+"assets/fonts/MaterialIcons-Regular.otf": "3397b4d091c07dd69d7da56f278ad346",
 "assets/NOTICES": "3430ffb75c24595702095cc8015ab924",
 "assets/packages/record_web/assets/js/record.fixwebmduration.js": "1f0108ea80c8951ba702ced40cf8cdce",
 "assets/packages/record_web/assets/js/record.worklet.js": "6d247986689d283b7e45ccdf7214c2ff",
@@ -30,7 +30,7 @@ const RESOURCES = {"assets/AssetManifest.bin": "79b85b7474ee8deb4412c082b0a80067
 "canvaskit/skwasm_heavy.wasm": "b0be7910760d205ea4e011458df6ee01",
 "favicon.png": "5dcef449791fa27946b3d35ad8803796",
 "flutter.js": "24bc71911b75b5f8135c949e27a2984e",
-"flutter_bootstrap.js": "3d65a873d91aee7033d666cf071a6cbc",
+"flutter_bootstrap.js": "faadc671d5e202b9e198518491fdd079",
 "icons/Icon-192.png": "c4ebbab723ec50b597ff97ed27b60881",
 "icons/Icon-192.png.png": "c4ebbab723ec50b597ff97ed27b60881",
 "icons/Icon-512.png": "780f19caa8c8b1af47a2c326c920d1f6",
@@ -41,11 +41,11 @@ const RESOURCES = {"assets/AssetManifest.bin": "79b85b7474ee8deb4412c082b0a80067
 "icons/Icon-maskable-512.png.png": "913010398e2b4252e7bc9923cff1410e",
 "index.html": "6988053d728b3675c4516973c61189eb",
 "/": "6988053d728b3675c4516973c61189eb",
-"main.dart.js": "e7bf0ebd6ab8845e67f463d926d588cf",
+"main.dart.js": "00dc05b0bff92601a7d5a4331ef6bcb1",
 "manifest.json": "8aaad9595dfd1f83119bf2c048521964",
 "OneSignalSDK.sw.js": "5df4d2cd36ee66b7ffd9705827ff31f9",
 "OneSignalSDKWorker.js": "8e3ee21f321e4291e1671535f04679c8",
-"version.json": "3e5d5249adb29af7e608a816aa1b5f20"};
+"version.json": "2dfd37a2ed7c6a03ddda6d5f90ca4853"};
 // The application shell files that are downloaded before a service worker can
 // start.
 const CORE = ["main.dart.js",
