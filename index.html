@@ -1,140 +1,97 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <base href="/chatweb/">
-    <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0175C2">
+<!DOCTYPE html> 
+ <html> 
+ <head> 
+   <base href="/chatweb/"> 
+ 
+   <meta charset="UTF-8"> 
+   <meta content="IE=Edge" http-equiv="X-UA-Compatible"> 
+   <meta name="description" content="Chat App"> 
+ 
+   <meta name="apple-mobile-web-app-capable" content="yes"> 
+   <meta name="apple-mobile-web-app-status-bar-style" content="black"> 
+   <meta name="apple-mobile-web-app-title" content="Chat"> 
+   <link rel="apple-touch-icon" href="icons/Icon-192.png"> 
+ 
+   <link rel="icon" type="image/png" href="favicon.png"/> 
+ 
+   <title>Chat App</title> 
+   <link rel="manifest" href="manifest.json"> 
+ 
+   <style> 
+     /* Estilo para a tela de carregamento inicial */ 
+     .loading { 
+       display: flex; 
+       justify-content: center; 
+       align-items: center; 
+       margin: 0; 
+       position: absolute; 
+       top: 50%; 
+       left: 50%; 
+       transform: translate(-50%, -50%); 
+     } 
+     .loader { 
+       border: 6px solid #f3f3f3; 
+       border-radius: 50%; 
+       border-top: 6px solid #3498db; 
+       width: 40px; 
+       height: 40px; 
+       animation: spin 1s linear infinite; 
+     } 
+     @keyframes spin { 
+       0% { transform: rotate(0deg); } 
+       100% { transform: rotate(360deg); } 
+     } 
+     body { 
+       background-color: #ffffff; 
+     } 
+   </style> 
+   <!-- OneSignal SDK -->
+   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+ </head> 
+ <body> 
+   <div class="loading" id="loading-indicator"> 
+     <div class="loader"></div> 
+   </div> 
+ 
+   <!-- Flutter scripts -->
+   <script src="flutter.js" defer></script>
+   <script src="flutter_bootstrap.js" async></script> 
+   
+   <script> 
+     // Inicialização do OneSignal em segundo plano
+     window.OneSignalDeferred = window.OneSignalDeferred || [];
+     OneSignalDeferred.push(async function(OneSignal) {
+       try {
+         await OneSignal.init({
+           appId: "61e6874c-bca0-4628-ad07-8053c0cd499e",
+           serviceWorkerPath: "OneSignalSDK.sw.js",
+           allowLocalhostAsSecureOrigin: true,
+         });
+       } catch (e) {
+         console.warn('OneSignal init delayed/failed:', e);
+       }
+     });
 
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Faekon Suporte">
-    <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-    <meta name="flutter-web-renderer" content="html">
-    <meta http-equiv="Content-Security-Policy" content="default-src * self blob: data: gap:; style-src * self 'unsafe-inline' blob: data: gap:; script-src * 'self' 'unsafe-eval' 'unsafe-inline' data: blob: gap:; img-src * self 'unsafe-inline' blob: data: gap:; connect-src * self blob: data: gap:; font-src * self data: blob: gap:;">
-
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" type="image/png" href="favicon.png">
-
-    <title>Faekon Suporte</title>
-
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-    <script>
-        window.flutterWebRenderer = "html";
-    </script>
-    <script>
-        window.OneSignalDeferred = window.OneSignalDeferred || [];
-        OneSignalDeferred.push(async function(OneSignal) {
-          const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-
-          await OneSignal.init({
-            appId: "61e6874c-bca0-4628-ad07-8053c0cd499e",
-            serviceWorkerPath: "/chatweb/OneSignalSDK.sw.js",
-            // Removido safari_web_id para forçar o Web Push moderno (iOS 16.4+)
-            notifyButton: {
-              enable: isStandalone,
-              position: 'bottom-right',
-              theme: 'default',
-              text: {
-                'tip.state.unsubscribed': 'Inscreva-se para notificações',
-                'tip.state.subscribed': "Você está inscrito",
-                'tip.state.blocked': "Você bloqueou as notificações",
-                'message.prenotify': 'Clique para receber alertas de novas mensagens',
-              }
-            },
-            allowLocalhostAsSecureOrigin: true,
-          });
-
-          // AJUSTE PARA IOS: O pedido de permissão só funciona após uma interação física do usuário
-          if (isStandalone) {
-              const requestPermissionOnInteraction = async () => {
-                  const perm = await OneSignal.Notifications.permission;
-                  if (perm === 'default' || !perm) {
-                      console.log("iOS: Solicitando permissão após interação...");
-                      await OneSignal.Notifications.requestPermission();
-                  }
-                  document.removeEventListener('click', requestPermissionOnInteraction);
-                  document.removeEventListener('touchstart', requestPermissionOnInteraction);
-              };
-              document.addEventListener('click', requestPermissionOnInteraction);
-              document.addEventListener('touchstart', requestPermissionOnInteraction);
-          }
-
-          function cleanUserId(id) {
-            if (!id) return null;
-            if (id.startsWith('"') && id.endsWith('"')) {
-              return id.slice(1, -1);
-            }
-            return id;
-          }
-
-          window.forceOneSignalLogin = async function(rawId) {
-            const id = cleanUserId(rawId);
-            if (id) {
-              await OneSignal.login(id);
-            }
-          };
-
-          try {
-            let rawUid = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
-            let uid = cleanUserId(rawUid);
-            const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
-                            localStorage.getItem('flutter.isAdmin') === '"true"';
-
-            if (isAdmin) uid = 'admin';
-
-            if (uid) {
-              await OneSignal.login(uid);
-            }
-
-            try {
-              const perm = await OneSignal.Notifications.permission;
-              if (perm === 'granted' && OneSignal.User.PushSubscription.optedIn === false) {
-                await OneSignal.User.PushSubscription.optIn();
-              }
-            } catch (e) {}
-
-            OneSignal.Notifications.addEventListener("foregroundWillDisplay", (event) => {
-              const activeChatIdRaw = localStorage.getItem('flutter.activeChatId');
-              const activeChatId = cleanUserId(activeChatIdRaw);
-              const isAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
-                              localStorage.getItem('flutter.isAdmin') === '"true"';
-
-              if (activeChatId) {
-                const notificationData = event.notification.additionalData;
-                const senderId = notificationData ? notificationData.userId : null;
-                if (isAdmin) {
-                  if (senderId === activeChatId) event.preventDefault();
-                } else {
-                  event.preventDefault();
-                }
-              }
-            });
-
-            let lastUid = uid;
-            setInterval(async () => {
-               let currentRaw = localStorage.getItem('flutter.userId') || localStorage.getItem('userId');
-               let currentUid = cleanUserId(currentRaw);
-               const currentIsAdmin = localStorage.getItem('flutter.isAdmin') === 'true' ||
-                                      localStorage.getItem('flutter.isAdmin') === '"true"';
-               if (currentIsAdmin) currentUid = 'admin';
-
-               if (currentUid && currentUid !== lastUid) {
-                 await OneSignal.login(currentUid);
-                 lastUid = currentUid;
-               }
-            }, 2000);
-
-          } catch (e) {
-            console.log('OneSignal Web: erro ao configurar', e);
-          }
-        });
-    </script>
-
-    <script src="flutter_bootstrap.js" async></script>
-</head>
-<body>
-</body>
-</html>
+     window.addEventListener('load', function(ev) { 
+       // Força o renderizador HTML 
+       window.flutterWebRenderer = "html"; 
+ 
+       // Download engine e inicialização v2 
+       _flutter.loader.loadEntrypoint({ 
+         serviceWorker: { 
+           timeoutMillis: 4000, 
+           serviceWorkerVersion: typeof serviceWorkerVersion !== 'undefined' ? serviceWorkerVersion : null, 
+         }, 
+         onEntrypointLoaded: function(engineInitializer) { 
+           engineInitializer.initializeEngine().then(function(appRunner) { 
+             // Remove o loader assim que o motor estiver pronto 
+             const indicator = document.getElementById('loading-indicator');
+             if (indicator) indicator.remove(); 
+             appRunner.runApp(); 
+           }); 
+         } 
+       }); 
+     }); 
+   </script> 
+ </body> 
+ </html>
