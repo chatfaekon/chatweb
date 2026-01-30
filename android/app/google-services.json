@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "111503786110",
+    "project_id": "chatfaekon-806e9",
+    "storage_bucket": "chatfaekon-806e9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:111503786110:android:2b4e06bf18dad17d5dd82f",
+        "android_client_info": {
+          "package_name": "com.example.chat_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIIyqlILtRJ8nKwU2vydYIGvTCAbNpGLM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,1767 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloudinary_public/cloudinary_public.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
+import 'dart:io';
+import 'dart:convert';
+import 'dart:math';
+import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart';
+import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/chat_state.dart';
+
+class ChatScreen extends StatefulWidget {
+  final String userId;
+  final String userName;
+  final bool userIsAdmin;
+
+  const ChatScreen({
+    super.key,
+    required this.userId,
+    required this.userName,
+    this.userIsAdmin = false,
+  });
+
+  @override
+  State<ChatScreen> createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  final FocusNode _inputFocusNode = FocusNode();
+
+  late AudioRecorder _audioRecorder;
+  AudioPlayer? _inlineAudioPlayer;
+  bool _isRecording = false;
+  String? _currentlyPlayingUrl;
+  Duration _audioPosition = Duration.zero;
+  Duration _audioDuration = Duration.zero;
+
+  List<DocumentSnapshot> _currentDocs = [];
+  String? _lastMessageId;
+
+  Stopwatch _stopwatch = Stopwatch();
+  Timer? _recordingTimer;
+  String _recordingTime = "00:00";
+
+  String _chatStatus = 'open';
+  String? _replyToText;
+  Map<String, dynamic>? _chatData;
+  Timer? _timer;
+  Timer? _typingTimer;
+  StreamSubscription? _unreadSubscription;
+
+  int _currentSearchIndex = 0;
+  List<int> _searchMatches = [];
+  String? _currentSearchQuery;
+  bool _isSearching = false;
+
+  bool _userScrolledManually = false;
+  bool _isUploading = false;
+  String _appVersion = "";
+
+  bool _showScrollToBottomBtn = false;
+
+  int _rating = 0;
+  final TextEditingController _feedbackController = TextEditingController();
+  bool _isSubmittingFeedback = false;
+
+  List<Map<String, dynamic>> _quickMessages = [];
+
+  final Map<int, GlobalKey> _messageKeys = {};
+  final cloudinary = CloudinaryPublic('dcgukezed', 'chat_preset', cache: false);
+
+  final Map<String, List<double>> _waveCache = {};
+
+  late Stream<QuerySnapshot> _mediaStream;
+
+  CollectionReference get _messagesRef => FirebaseFirestore.instance
+      .collection('chats')
+      .doc(widget.userId)
+      .collection('messages');
+
+  DocumentReference get _chatRef =>
+      FirebaseFirestore.instance.collection('chats').doc(widget.userId);
+
+  CollectionReference get _quickMessagesRef =>
+      FirebaseFirestore.instance.collection('quick_messages');
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _configureOfflinePersistence();
+    _audioRecorder = AudioRecorder();
+    _inlineAudioPlayer = AudioPlayer();
+    _loadChatStatus();
+    _listenChatData();
+    _loadVersion();
+    _checkAndSendWelcomeMessage();
+    _setUserPresence(true);
+
+    ChatState.isChatOpen = true;
+    ChatState.currentChatId = widget.userId;
+
+    if (widget.userIsAdmin) {
+      _markMessagesAsRead();
+      _listenQuickMessages();
+      _unreadSubscription = _messagesRef
+          .where('readByAdmin', isEqualTo: false)
+          .snapshots()
+          .listen((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.update({'readByAdmin': true});
+        }
+      });
+    } else {
+      _unreadSubscription = _messagesRef
+          .where('sender', isEqualTo: 'admin')
+          .where('readByUser', isEqualTo: false)
+          .snapshots()
+          .listen((snapshot) {
+        for (var doc in snapshot.docs) {
+          doc.reference.update({'readByUser': true});
+        }
+      });
+    }
+
+    _inlineAudioPlayer?.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _audioPosition = p);
+    });
+    _inlineAudioPlayer?.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _audioDuration = d);
+    });
+
+    _inlineAudioPlayer?.onPlayerComplete.listen((event) {
+      if (mounted) {
+        _playNextAudioIfAvailable();
+      }
+    });
+
+    _messageController.addListener(() {
+      _onTextChanged();
+      if (mounted) setState(() {});
+    });
+
+    _scrollController.addListener(() {
+      final offset = _scrollController.offset;
+      if (offset > 400) {
+        if (!_showScrollToBottomBtn)
+          setState(() => _showScrollToBottomBtn = true);
+      } else {
+        if (_showScrollToBottomBtn)
+          setState(() => _showScrollToBottomBtn = false);
+      }
+
+      if (offset > 50) {
+        if (!_userScrolledManually) _userScrolledManually = true;
+      } else {
+        if (_userScrolledManually) _userScrolledManually = false;
+      }
+    });
+
+    _searchController.addListener(() {
+      final newQuery = _searchController.text.trim();
+      if (_currentSearchQuery != newQuery) {
+        _currentSearchQuery = newQuery;
+        if (newQuery.isNotEmpty) {
+          _performSearch(newQuery);
+        } else {
+          setState(() {
+            _searchMatches.clear();
+            _currentSearchIndex = 0;
+          });
+        }
+      }
+    });
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+    _initMediaStream();
+  }
+
+  void _initMediaStream() {
+    _mediaStream =
+        _messagesRef.where('fileType', isEqualTo: 'image').snapshots();
+  }
+
+  @override
+  void didUpdateWidget(covariant ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.userId != widget.userId) {
+      _initMediaStream();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    ChatState.isChatOpen = false;
+    ChatState.currentChatId = null;
+    _setUserPresence(false);
+    _timer?.cancel();
+    _typingTimer?.cancel();
+    _recordingTimer?.cancel();
+    _unreadSubscription?.cancel();
+    _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    _inputFocusNode.dispose();
+    _messageController.dispose();
+    _feedbackController.dispose();
+    _audioRecorder.dispose();
+    _inlineAudioPlayer?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _setUserPresence(true);
+    } else {
+      _setUserPresence(false);
+    }
+  }
+
+  Future<void> _setUserPresence(bool online) async {
+    final field = widget.userIsAdmin ? 'adminOnline' : 'userOnline';
+    final lastSeenField = widget.userIsAdmin ? 'adminLastSeen' : 'userLastSeen';
+
+    await _chatRef.set({
+      field: online,
+      lastSeenField: FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  void _onTextChanged() {
+    final typingField = widget.userIsAdmin ? 'adminTyping' : 'userTyping';
+    if (_messageController.text.isNotEmpty) {
+      _chatRef.update({typingField: true});
+      _typingTimer?.cancel();
+      _typingTimer = Timer(const Duration(seconds: 2), () {
+        _chatRef.update({typingField: false});
+      });
+    } else {
+      _chatRef.update({typingField: false});
+    }
+  }
+
+  void _configureOfflinePersistence() {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  }
+
+  void _listenQuickMessages() {
+    _quickMessagesRef.orderBy('text').snapshots().listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _quickMessages = snapshot.docs
+              .map((doc) => {
+            'id': doc.id,
+            'text': doc['text'],
+          })
+              .toList();
+        });
+      }
+    });
+  }
+
+  Future<void> _sendPushNotification(String messageText) async {
+    // Na Web, o envio é feito via Cloud Functions para evitar bloqueio de CORS.
+    // No Mobile (Android/iOS), o envio pode ser feito direto pelo App (ou também pelo backend se preferir).
+    if (kIsWeb) {
+      debugPrint("WEB: Notificação será enviada pela Cloud Function.");
+      return;
+    }
+
+    String targetId = widget.userIsAdmin ? widget.userId : "admin";
+    String title = widget.userIsAdmin ? "Suporte Faekon" : widget.userName;
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://onesignal.com/api/v1/notifications'),
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Authorization':
+          'Basic os_v2_app_mhtiotf4ubdcrlihqbj4btkjtzcp3x7kjsvumnno2g5alttjvsoi6sdhoish262moszwyec7vxq62odkztzk5dnzbidhesr2bfjliui',
+        },
+        body: jsonEncode({
+          'app_id': '61e6874c-bca0-4628-ad07-8053c0cd499e',
+          'include_aliases': {
+            'external_id': [targetId]
+          },
+          'target_channel': 'push',
+          'headings': {'pt': title, 'en': title},
+          'contents': {'pt': messageText, 'en': messageText},
+          'android_sound': 'alerta',
+          'priority': 10,
+          'android_visibility': 1,
+          'data': {'userId': widget.userId},
+        }),
+      );
+      debugPrint("OneSignal Push Response: ${response.body}");
+    } catch (e) {
+      debugPrint("Erro ao enviar push OneSignal: $e");
+    }
+  }
+
+  Future<void> _handleAudioAction() async {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Gravação de áudio não disponível nesta versão.')));
+      return;
+    }
+    if (_isRecording) {
+      await _stopAndSendRecording();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (await _audioRecorder.hasPermission()) {
+        final directory = await getApplicationDocumentsDirectory();
+        final path =
+            '${directory.path}/audio_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+        await _audioRecorder
+            .start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+
+        _stopwatch.reset();
+        _stopwatch.start();
+        _recordingTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+          setState(() {
+            final minutes =
+            _stopwatch.elapsed.inMinutes.toString().padLeft(2, '0');
+            final seconds =
+            (_stopwatch.elapsed.inSeconds % 60).toString().padLeft(2, '0');
+            _recordingTime = "$minutes:$seconds";
+          });
+        });
+        setState(() => _isRecording = true);
+        HapticFeedback.mediumImpact();
+      }
+    } catch (e) {
+      debugPrint("Erro ao gravar: $e");
+    }
+  }
+
+  Future<void> _stopAndSendRecording() async {
+    if (!_isRecording) return;
+    _stopwatch.stop();
+    final path = await _audioRecorder.stop();
+    setState(() {
+      _isRecording = false;
+      _recordingTime = "00:00";
+    });
+    if (path != null) {
+      _uploadFile(File(path), 'audio');
+      HapticFeedback.lightImpact();
+    }
+  }
+
+  void _playNextAudioIfAvailable() {
+    if (_currentlyPlayingUrl == null) return;
+
+    int currentIndex = _currentDocs.indexWhere((doc) {
+      final data = doc.data() as Map<String, dynamic>;
+      return data['fileUrl'] == _currentlyPlayingUrl;
+    });
+
+    setState(() {
+      _currentlyPlayingUrl = null;
+      _audioPosition = Duration.zero;
+    });
+
+    if (currentIndex > 0) {
+      for (int i = currentIndex - 1; i >= 0; i--) {
+        final nextData = _currentDocs[i].data() as Map<String, dynamic>;
+        if (nextData['fileType'] == 'audio' && nextData['fileUrl'] != null) {
+          _playInternalAudio(nextData['fileUrl']);
+          break;
+        }
+        if (nextData['text'] != null && nextData['fileUrl'] == null) break;
+      }
+    }
+  }
+
+  Future<void> _playInternalAudio(String url) async {
+    if (_currentlyPlayingUrl == url) {
+      await _inlineAudioPlayer?.pause();
+      setState(() => _currentlyPlayingUrl = null);
+    } else {
+      try {
+        if (kIsWeb) {
+          await _inlineAudioPlayer?.play(UrlSource(url));
+        } else {
+          final dir = await getTemporaryDirectory();
+          final filename = url.split('/').last;
+          final file = File('${dir.path}/$filename');
+
+          if (await file.exists()) {
+            await _inlineAudioPlayer?.play(DeviceFileSource(file.path));
+          } else {
+            await _inlineAudioPlayer?.play(UrlSource(url));
+            unawaited(http.get(Uri.parse(url)).then((res) {
+              if (res.statusCode == 200) file.writeAsBytes(res.bodyBytes);
+            }));
+          }
+        }
+        setState(() => _currentlyPlayingUrl = url);
+      } catch (e) {
+        await _inlineAudioPlayer?.play(UrlSource(url));
+        setState(() => _currentlyPlayingUrl = url);
+      }
+    }
+  }
+
+  void _showFullImage(String url) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  placeholder: (context, url) =>
+                  const CircularProgressIndicator(),
+                  errorWidget: (context, url, error) =>
+                  const Icon(Icons.error, color: Colors.white),
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            Positioned(
+                top: 40,
+                left: 20,
+                child: IconButton(
+                    icon:
+                    const Icon(Icons.close, color: Colors.white, size: 30),
+                    onPressed: () => Navigator.pop(context))),
+            Positioned(
+                top: 40,
+                right: 20,
+                child: IconButton(
+                    icon:
+                    const Icon(Icons.share, color: Colors.white, size: 30),
+                    onPressed: () => Share.share("Confira: $url"))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _checkAndSendWelcomeMessage() async {
+    final snapshot = await _messagesRef.limit(1).get();
+    if (snapshot.docs.isEmpty) {
+      await _sendMessage(
+          systemText:
+          'Olá ${widget.userName}, seja bem-vindo ao suporte Faekon! Como podemos ajudar?');
+    }
+  }
+
+  Future<void> _loadChatStatus() async {
+    final doc = await _chatRef.get();
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      setState(() => _chatStatus = data['status'] ?? 'open');
+    }
+  }
+
+  void _listenChatData() {
+    _chatRef.snapshots().listen((doc) {
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>?;
+        setState(() {
+          _chatData = data;
+          _chatStatus = data?['status'] ?? 'open';
+        });
+      }
+    });
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    final snapshot =
+    await _messagesRef.where('readByAdmin', isEqualTo: false).get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (var doc in snapshot.docs)
+      batch.update(doc.reference, {'readByAdmin': true});
+    await batch.commit();
+  }
+
+  void _scrollToBottom() {
+    if (_scrollController.hasClients &&
+        !_userScrolledManually &&
+        !_isSearching) {
+      _scrollController.jumpTo(0.0);
+    }
+  }
+
+  void _jumpToBottom() {
+    _userScrolledManually = false;
+    _scrollController.animateTo(0.0,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+  }
+
+  Future<void> _sendMessage(
+      {String? systemText,
+        String? fileUrl,
+        String? fileName,
+        String? fileType}) async {
+    final text = systemText ?? _messageController.text.trim();
+    if (text.isEmpty && fileUrl == null) return;
+    if (_chatStatus == 'closed' && systemText == null) return;
+
+    String notificationBody = text;
+    if (fileType == 'image')
+      notificationBody = '📷 Foto';
+    else if (fileType == 'audio')
+      notificationBody = '🎤 Áudio';
+    else if (fileType == 'file') notificationBody = '📎 Arquivo';
+
+    final reply = _replyToText;
+
+    if (systemText == null) {
+      _messageController.clear();
+      _replyToText = null;
+      if (fileType == null) {
+        _inputFocusNode.requestFocus();
+      }
+    }
+
+    await _messagesRef.add({
+      'text': text,
+      'sender': widget.userIsAdmin || systemText != null ? 'admin' : 'user',
+      'timestamp': FieldValue.serverTimestamp(),
+      'edited': false,
+      'readByAdmin': widget.userIsAdmin,
+      'readByUser': !widget.userIsAdmin && systemText == null,
+      'system': systemText != null,
+      'replyTo': reply,
+      'fileUrl': fileUrl,
+      'fileName': fileName,
+      'fileType': fileType,
+    });
+
+    await _chatRef.set({
+      'lastMessage': notificationBody,
+      'lastMessageAt': FieldValue.serverTimestamp(),
+      'startedAt': _chatData?['startedAt'] ?? FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    if (systemText == null) {
+      unawaited(_sendPushNotification(notificationBody));
+    }
+
+    _userScrolledManually = false;
+    _scrollToBottom();
+  }
+
+  Future<void> _pickAndUploadFile() async {
+    if (_chatStatus != 'open') return;
+    showModalBottomSheet(
+        context: context,
+        builder: (_) => SafeArea(
+            child: Wrap(children: [
+              ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Câmera'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final img = await ImagePicker().pickImage(
+                        source: ImageSource.camera, imageQuality: 70);
+                    if (img != null) _uploadFile(File(img.path), 'image');
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.image),
+                  title: const Text('Galeria'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final img = await ImagePicker().pickImage(
+                        source: ImageSource.gallery, imageQuality: 70);
+                    if (img != null) _uploadFile(File(img.path), 'image');
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.insert_drive_file),
+                  title: const Text('Documento'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    final res = await FilePicker.platform.pickFiles();
+                    if (res != null && res.files.single.path != null)
+                      _uploadFile(File(res.files.single.path!), 'file');
+                  }),
+            ])));
+  }
+
+  Future<void> _uploadFile(File file, String type) async {
+    setState(() => _isUploading = true);
+    try {
+      final name =
+      file.path.split('/').last.replaceAll(RegExp(r'[^\w\.]'), '_');
+      CloudinaryResponse res = await cloudinary.uploadFile(
+          CloudinaryFile.fromFile(file.path,
+              resourceType: type == 'image'
+                  ? CloudinaryResourceType.Image
+                  : CloudinaryResourceType.Auto,
+              folder: 'chats/${widget.userId}'));
+      await _sendMessage(
+          fileUrl: res.secureUrl, fileName: name, fileType: type);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Erro ao enviar: $e')));
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  Future<void> _finalizeChat() async {
+    await _sendMessage(systemText: 'Este atendimento foi finalizado.');
+    await _chatRef.set({
+      'status': 'closed',
+      'endedAt': FieldValue.serverTimestamp(),
+      'feedbackRating': null,
+      'feedbackComment': null
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> _reopenChat() async {
+    await _chatRef.set({
+      'status': 'open',
+      'startedAt': FieldValue.serverTimestamp(),
+      'endedAt': null
+    }, SetOptions(merge: true));
+    await _sendMessage(systemText: 'Atendimento reaberto.');
+  }
+
+  Future<void> _reopenChatByUser() async {
+    await _chatRef.set({
+      'status': 'open',
+      'startedAt': FieldValue.serverTimestamp(),
+      'endedAt': null
+    }, SetOptions(merge: true));
+    await _sendMessage(systemText: 'Chat reaberto pelo cliente.');
+  }
+
+  Future<void> _submitFeedback() async {
+    if (_rating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Por favor, selecione uma nota.')));
+      return;
+    }
+    setState(() => _isSubmittingFeedback = true);
+    try {
+      final feedbackData = {
+        'rating': _rating,
+        'comment': _feedbackController.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+        'userName': widget.userName,
+      };
+      await _chatRef.update({
+        'feedbackRating': _rating,
+        'feedbackComment': _feedbackController.text.trim(),
+        'feedbackAt': FieldValue.serverTimestamp(),
+      });
+      await _chatRef.collection('feedbacks').add(feedbackData);
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Obrigado pela sua avaliação!')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao salvar avaliação: $e')));
+    } finally {
+      if (mounted) setState(() => _isSubmittingFeedback = false);
+    }
+  }
+
+  Future<void> _clearChat() async {
+    final snapshot = await _messagesRef.get();
+    final batch = FirebaseFirestore.instance.batch();
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Conversa limpa com sucesso.')));
+  }
+
+  Future<void> _loadVersion() async {
+    final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _appVersion = "v${packageInfo.version}";
+      });
+    }
+  }
+
+  Duration _calculateChatDuration() {
+    if (_chatData == null) return Duration.zero;
+    final Timestamp? s = _chatData!['startedAt'];
+    final Timestamp? e = _chatData!['endedAt'];
+    if (_chatStatus == 'open')
+      return s != null ? DateTime.now().difference(s.toDate()) : Duration.zero;
+    return (s != null && e != null)
+        ? e.toDate().difference(s.toDate())
+        : Duration.zero;
+  }
+
+  String _formatDuration(Duration d) =>
+      "${d.inMinutes % 60}m ${d.inSeconds % 60}s";
+  String _formatAudioTime(Duration d) =>
+      "${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}";
+
+  void _performSearch(String query) {
+    final lowerQuery = query.toLowerCase();
+    final List<int> matches = [];
+
+    for (int i = 0; i < _currentDocs.length; i++) {
+      final d = _currentDocs[i].data() as Map<String, dynamic>;
+      final text = (d['text'] ?? '').toString().toLowerCase();
+      if (text.contains(lowerQuery)) {
+        matches.add(i);
+      }
+    }
+
+    setState(() {
+      _searchMatches = matches;
+      _currentSearchIndex = 0;
+    });
+
+    if (matches.isNotEmpty) {
+      _scrollToMatch(matches[0]);
+    }
+  }
+
+  Future<void> _scrollToMatch(int index) async {
+    if (!_scrollController.hasClients) return;
+
+    final key = _messageKeys[index];
+    if (key != null && key.currentContext != null) {
+      await Scrollable.ensureVisible(
+        key.currentContext!,
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeInOut,
+        alignment: 0.5,
+      );
+    } else {
+      double targetOffset = index * 70.0;
+      await _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeIn,
+      );
+    }
+  }
+
+  void _showQuickMessagesPanel() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          height: MediaQuery.of(context).size.height * 0.6,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Mensagens Rápidas",
+                      style:
+                      TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.blue),
+                    onPressed: () => _editQuickMessage(null),
+                  )
+                ],
+              ),
+              const Divider(),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: _quickMessages.length,
+                  itemBuilder: (context, index) => ListTile(
+                    title: Text(_quickMessages[index]['text']),
+                    onTap: () {
+                      _messageController.text = _quickMessages[index]['text'];
+                      Navigator.pop(context);
+                    },
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            onPressed: () =>
+                                _editQuickMessage(_quickMessages[index])),
+                        IconButton(
+                            icon: const Icon(Icons.delete,
+                                size: 20, color: Colors.red),
+                            onPressed: () {
+                              final String docId = _quickMessages[index]['id'];
+                              setModalState(() {
+                                _quickMessages.removeAt(index);
+                              });
+                              _quickMessagesRef.doc(docId).delete();
+                            }),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _editQuickMessage(Map<String, dynamic>? quickMsg) {
+    final controller =
+    TextEditingController(text: quickMsg != null ? quickMsg['text'] : "");
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(quickMsg == null ? "Nova Mensagem" : "Editar Mensagem"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: "Digite a frase..."),
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancelar")),
+          TextButton(
+              onPressed: () async {
+                if (controller.text.trim().isNotEmpty) {
+                  if (quickMsg == null) {
+                    await _quickMessagesRef
+                        .add({'text': controller.text.trim()});
+                  } else {
+                    await _quickMessagesRef
+                        .doc(quickMsg['id'])
+                        .update({'text': controller.text.trim()});
+                  }
+                }
+                Navigator.pop(context);
+              },
+              child: const Text("Salvar")),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchOverlay() {
+    if (!_isSearching) return const SizedBox.shrink();
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Row(
+        children: [
+          IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                _searchFocusNode.unfocus();
+                setState(() {
+                  _isSearching = false;
+                  _searchController.clear();
+                  _searchMatches.clear();
+                  _currentSearchQuery = null;
+                });
+              }),
+          Expanded(
+              child: TextField(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                      hintText: 'Pesquisar...', border: InputBorder.none))),
+          if (_searchMatches.isNotEmpty)
+            Text('${_currentSearchIndex + 1}/${_searchMatches.length}'),
+          IconButton(
+              icon: const Icon(Icons.keyboard_arrow_up),
+              onPressed: _searchMatches.isEmpty
+                  ? null
+                  : () {
+                setState(() => _currentSearchIndex =
+                    (_currentSearchIndex - 1 + _searchMatches.length) %
+                        _searchMatches.length);
+                _scrollToMatch(_searchMatches[_currentSearchIndex]);
+              }),
+          IconButton(
+              icon: const Icon(Icons.keyboard_arrow_down),
+              onPressed: _searchMatches.isEmpty
+                  ? null
+                  : () {
+                setState(() => _currentSearchIndex =
+                    (_currentSearchIndex + 1) % _searchMatches.length);
+                _scrollToMatch(_searchMatches[_currentSearchIndex]);
+              }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessage(DocumentSnapshot msg, int index) {
+    final data = msg.data() as Map<String, dynamic>;
+    final senderType = data['sender'];
+    final isSystem = data['system'] == true;
+    final bool isMe = isSystem
+        ? false
+        : (widget.userIsAdmin ? senderType == 'admin' : senderType == 'user');
+    final timestamp = data['timestamp'] as Timestamp?;
+    final time =
+    timestamp != null ? DateFormat('HH:mm').format(timestamp.toDate()) : '';
+    final fileUrl = data['fileUrl'] as String?;
+    final fileType = data['fileType'] as String?;
+    final isEdited = data['edited'] == true;
+    final replyTo = data['replyTo'] as String?;
+
+    bool isRead = widget.userIsAdmin
+        ? (data['readByAdmin'] ?? false)
+        : (data['readByUser'] ?? false);
+
+    _messageKeys[index] = _messageKeys[index] ?? GlobalKey();
+    return Align(
+      key: _messageKeys[index],
+      alignment: isSystem
+          ? Alignment.center
+          : isMe
+          ? Alignment.centerRight
+          : Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: isSystem
+            ? CrossAxisAlignment.center
+            : isMe
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 2, horizontal: 8),
+            padding: EdgeInsets.symmetric(
+                horizontal: 10, vertical: (fileType == 'audio') ? 4 : 8),
+            decoration: BoxDecoration(
+              color: isSystem
+                  ? Colors.grey[300]
+                  : isMe
+                  ? Colors.blue[50]
+                  : Colors.grey[200],
+              borderRadius: BorderRadius.circular(16),
+              border: _isSearching &&
+                  _searchMatches.isNotEmpty &&
+                  _searchMatches[_currentSearchIndex] == index
+                  ? Border.all(color: Colors.orange, width: 2)
+                  : null,
+            ),
+            child: IntrinsicWidth(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (replyTo != null)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 4),
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border(
+                            left: BorderSide(
+                                color: isMe ? Colors.blue : Colors.grey,
+                                width: 3)),
+                      ),
+                      child: Text(
+                        replyTo,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontStyle: FontStyle.italic,
+                            color: Colors.grey[700]),
+                      ),
+                    ),
+                  if (fileUrl != null)
+                    fileType == 'image'
+                        ? GestureDetector(
+                      onTap: () => _showFullImage(fileUrl),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: CachedNetworkImage(
+                          imageUrl: fileUrl,
+                          width: 200,
+                          fit: BoxFit.cover,
+                          memCacheWidth: 450,
+                          placeholder: (context, url) => Container(
+                              width: 200,
+                              height: 150,
+                              color: Colors.grey[300],
+                              child: const Center(
+                                  child: CircularProgressIndicator())),
+                          errorWidget: (context, url, error) =>
+                          const Icon(Icons.error),
+                        ),
+                      ),
+                    )
+                        : fileType == 'audio'
+                        ? _buildAudioPlayerUI(fileUrl)
+                        : InkWell(
+                        onTap: () => Share.share(fileUrl),
+                        child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.insert_drive_file,
+                                  color: Colors.blue, size: 18),
+                              const SizedBox(width: 8),
+                              Text(data['fileName'] ?? 'Doc',
+                                  style: const TextStyle(fontSize: 13))
+                            ]))
+                  else
+                    Text(data['text'] ?? '',
+                        style: TextStyle(
+                            fontSize: 14,
+                            fontStyle: isSystem
+                                ? FontStyle.italic
+                                : FontStyle.normal)),
+                  const SizedBox(height: 2),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isEdited)
+                        const Text('editado ',
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: Colors.grey,
+                                fontStyle: FontStyle.italic)),
+                      if (!isSystem)
+                        Text(time,
+                            style: const TextStyle(
+                                fontSize: 9, color: Colors.grey)),
+                      if (!isSystem && isMe) ...[
+                        const SizedBox(width: 4),
+                        Icon(isRead ? Icons.done_all : Icons.done,
+                            size: 12,
+                            color: isRead ? Colors.blue : Colors.grey),
+                      ]
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<double> _getWaveformData(String url) {
+    if (_waveCache.containsKey(url)) return _waveCache[url]!;
+    final random = Random(url.hashCode);
+    final List<double> waves =
+    List.generate(35, (index) => 0.2 + random.nextDouble() * 0.8);
+    _waveCache[url] = waves;
+    return waves;
+  }
+
+  Widget _buildAudioPlayerUI(String url) {
+    bool isPlaying = _currentlyPlayingUrl == url;
+    final waves = _getWaveformData(url);
+    double progress = isPlaying
+        ? (_audioPosition.inMilliseconds /
+        (_audioDuration.inMilliseconds > 0
+            ? _audioDuration.inMilliseconds
+            : 1))
+        : 0.0;
+    return Container(
+      width: 210,
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Row(
+        children: [
+          IconButton(
+              iconSize: 32,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              icon: Icon(
+                  isPlaying
+                      ? Icons.pause_circle_filled
+                      : Icons.play_circle_filled,
+                  color: Colors.blue),
+              onPressed: () => _playInternalAudio(url)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onHorizontalDragUpdate: (details) {
+                    if (isPlaying && _audioDuration.inMilliseconds > 0) {
+                      final box = context.findRenderObject() as RenderBox;
+                      final localOffset =
+                      box.globalToLocal(details.globalPosition);
+                      double relativePos = (localOffset.dx - 50) / 140;
+                      relativePos = relativePos.clamp(0.0, 1.0);
+                      _inlineAudioPlayer?.seek(Duration(
+                          milliseconds:
+                          (relativePos * _audioDuration.inMilliseconds)
+                              .toInt()));
+                    }
+                  },
+                  child: CustomPaint(
+                    size: const Size(double.infinity, 25),
+                    painter: WaveformPainter(
+                      waves: waves,
+                      progress: progress,
+                      activeColor: Colors.blue,
+                      inactiveColor: Colors.grey[400]!,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                          isPlaying
+                              ? _formatAudioTime(_audioPosition)
+                              : "00:00",
+                          style:
+                          const TextStyle(fontSize: 9, color: Colors.grey)),
+                      const Icon(Icons.mic, size: 10, color: Colors.blue),
+                    ]),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMessageOptions(BuildContext context, DocumentSnapshot msg) {
+    final data = msg.data() as Map<String, dynamic>;
+    final senderType = data['sender'];
+    final isSystem = data['system'] == true;
+    if (isSystem) return;
+    final bool isMe =
+    (widget.userIsAdmin ? senderType == 'admin' : senderType == 'user');
+    final bool isImageOrFile = data['fileUrl'] != null;
+    showModalBottomSheet(
+        context: context,
+        builder: (_) => SafeArea(
+            child: Wrap(children: [
+              ListTile(
+                  leading: const Icon(Icons.reply),
+                  title: const Text('Responder'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _replyToText = data['text'] ??
+                        (data['fileType'] == 'image'
+                            ? 'Foto'
+                            : data['fileType'] == 'audio'
+                            ? 'Áudio'
+                            : 'Arquivo'));
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.copy),
+                  title: const Text('Copiar'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Clipboard.setData(ClipboardData(text: data['text'] ?? ''));
+                  }),
+              if (isMe && !isImageOrFile)
+                ListTile(
+                    leading: const Icon(Icons.edit),
+                    title: const Text('Editar'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _editMessage(msg, data['text'] ?? '');
+                    }),
+              if (isMe)
+                ListTile(
+                    leading: const Icon(Icons.delete, color: Colors.red),
+                    title: const Text('Excluir'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      msg.reference.delete();
+                    }),
+            ])));
+  }
+
+  void _editMessage(DocumentSnapshot msg, String currentText) {
+    final controller = TextEditingController(text: currentText);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Editar mensagem'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration:
+          const InputDecoration(hintText: "Digite a nova mensagem..."),
+          textCapitalization: TextCapitalization.sentences,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () async {
+                if (controller.text.trim().isNotEmpty) {
+                  await msg.reference
+                      .update({'text': controller.text.trim(), 'edited': true});
+                }
+                Navigator.pop(context);
+              },
+              child: const Text('Salvar')),
+        ],
+      ),
+    );
+  }
+
+  void _showChatOptions() {
+    showModalBottomSheet(
+        context: context,
+        builder: (_) => SafeArea(
+            child: Wrap(children: [
+              ListTile(
+                  leading: const Icon(Icons.search),
+                  title: const Text('Pesquisar na conversa'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _isSearching = true);
+                    _searchFocusNode.requestFocus();
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.share),
+                  title: const Text('Compartilhar conversa'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _exportChat();
+                  }),
+              ListTile(
+                  leading: const Icon(Icons.delete_sweep, color: Colors.red),
+                  title: const Text('Limpar Chat'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _clearChat();
+                  }),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.info_outline, color: Colors.blueGrey),
+                title: const Text('Versão do Sistema'),
+                trailing: Text(_appVersion,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                onTap: null,
+              ),
+            ])));
+  }
+
+  Future<void> _exportChat() async {
+    try {
+      final querySnapshot =
+      await _messagesRef.orderBy('timestamp', descending: false).get();
+      final buffer = StringBuffer();
+      buffer.writeln("FAEKON CHAT - HISTÓRICO\n");
+      for (var doc in querySnapshot.docs) {
+        final d = doc.data() as Map<String, dynamic>;
+        if (d['fileUrl'] == null && d['text'] != null) {
+          final sender = (d['sender'] == 'admin') ? "Suporte" : widget.userName;
+          buffer.writeln("$sender: ${d['text']}");
+        }
+      }
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/export_${widget.userId}.txt';
+      final file = File(path);
+      await file.writeAsString(buffer.toString(),
+          mode: FileMode.writeOnly, flush: true);
+      if (await file.exists()) {
+        await Share.shareXFiles([XFile(path)],
+            text: 'Histórico de Atendimento');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Falha ao exportar: $e')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    bool isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        floatingActionButton: _showScrollToBottomBtn
+            ? Padding(
+          padding: const EdgeInsets.only(bottom: 60),
+          child: FloatingActionButton(
+            mini: true,
+            onPressed: _jumpToBottom,
+            backgroundColor: Colors.blue,
+            child: const Icon(Icons.keyboard_arrow_down,
+                color: Colors.white),
+          ),
+        )
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+        appBar: AppBar(
+          toolbarHeight: 50.0,
+          elevation: 0,
+          title: StreamBuilder<DocumentSnapshot>(
+            stream: _chatRef.snapshots(),
+            builder: (context, snapshot) {
+              String subtitle = "";
+              bool isOnline = false;
+              bool typing = false;
+              if (snapshot.hasData && snapshot.data!.exists) {
+                final data = snapshot.data!.data() as Map<String, dynamic>;
+                isOnline = widget.userIsAdmin
+                    ? (data['userOnline'] ?? false)
+                    : (data['adminOnline'] ?? false);
+                typing = widget.userIsAdmin
+                    ? (data['userTyping'] ?? false)
+                    : (data['adminTyping'] ?? false);
+                if (typing) {
+                  subtitle = "digitando...";
+                } else if (isOnline) {
+                  subtitle = "Online";
+                } else {
+                  final Timestamp? lastSeen = widget.userIsAdmin
+                      ? data['userLastSeen']
+                      : data['adminLastSeen'];
+                  subtitle = lastSeen != null
+                      ? "Visto por último: ${DateFormat('HH:mm').format(lastSeen.toDate())}"
+                      : "Offline";
+                }
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                          widget.userIsAdmin
+                              ? widget.userName
+                              : 'Suporte Faekon',
+                          style: const TextStyle(fontSize: 16)),
+                      const SizedBox(width: 6),
+                      if (isOnline)
+                        Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                                color: Colors.greenAccent,
+                                shape: BoxShape.circle)),
+                    ],
+                  ),
+                  if (subtitle.isNotEmpty)
+                    Text(subtitle,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.normal,
+                            color: Colors.white70)),
+                ],
+              );
+            },
+          ),
+          actions: [
+            if (widget.userIsAdmin)
+              IconButton(
+                  visualDensity: VisualDensity.compact,
+                  icon: Icon(_chatStatus == 'open'
+                      ? Icons.lock_outline
+                      : Icons.lock_open),
+                  onPressed:
+                  _chatStatus == 'open' ? _finalizeChat : _reopenChat),
+            IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.tune),
+                onPressed: _showChatOptions),
+          ],
+          bottom: const TabBar(
+            indicatorWeight: 3.0,
+            indicatorColor: Colors.white,
+            labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            tabs: [
+              Tab(text: "CONVERSA"),
+              Tab(text: "MÍDIAS"),
+            ],
+          ),
+        ),
+        body: SafeArea(
+          child: TabBarView(
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              Column(
+                children: [
+                  _buildSearchOverlay(),
+                  if (widget.userIsAdmin && _chatData != null)
+                    Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 12),
+                        color: Colors.blueGrey[50],
+                        child: Center(
+                            child: Text(
+                                'Tempo: ${_formatDuration(_calculateChatDuration())}',
+                                style: TextStyle(
+                                    fontSize: isLandscape ? 10 : 12)))),
+                  if (_isUploading) const LinearProgressIndicator(),
+                  Expanded(
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: _messagesRef
+                          .orderBy('timestamp', descending: true)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData)
+                          return const Center(
+                              child: CircularProgressIndicator());
+
+                        final docs = snapshot.data!.docs;
+                        if (docs.isNotEmpty) {
+                          final newestId = docs.first.id;
+                          if (newestId != _lastMessageId) {
+                            _lastMessageId = newestId;
+                            if (!_isSearching && !_userScrolledManually) {
+                              WidgetsBinding.instance.addPostFrameCallback(
+                                      (_) => _scrollToBottom());
+                            }
+                          }
+                        }
+                        _currentDocs = docs;
+
+                        return ListView.builder(
+                            cacheExtent: 1000.0,
+                            reverse: true,
+                            controller: _scrollController,
+                            itemCount: _currentDocs.length,
+                            findChildIndexCallback: (Key key) {
+                              if (key is ValueKey<String>) {
+                                final String id = key.value;
+                                return _currentDocs
+                                    .indexWhere((doc) => doc.id == id);
+                              }
+                              return null;
+                            },
+                            itemBuilder: (c, i) =>
+                                _buildMessage(_currentDocs[i], i));
+                      },
+                    ),
+                  ),
+                  _buildFeedbackPanel(),
+                  if (!widget.userIsAdmin && _chatStatus == 'closed')
+                    Padding(
+                      padding: const EdgeInsets.all(8.0),
+                      child: ElevatedButton(
+                          onPressed: _reopenChatByUser,
+                          child: const Text('Reabrir Chat')),
+                    ),
+                  _buildInputArea(),
+                ],
+              ),
+              _buildMediaGrid(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMediaGrid() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _mediaStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final docs = snapshot.data?.docs.toList() ?? [];
+        docs.sort((a, b) {
+          final tA =
+          (a.data() as Map<String, dynamic>)['timestamp'] as Timestamp?;
+          final tB =
+          (b.data() as Map<String, dynamic>)['timestamp'] as Timestamp?;
+          if (tA == null) return 1;
+          if (tB == null) return -1;
+          return tB.compareTo(tA);
+        });
+
+        if (docs.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.photo_library_outlined,
+                    color: Colors.grey, size: 50),
+                SizedBox(height: 10),
+                Text("Nenhuma mídia disponível.",
+                    style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          key: const PageStorageKey('media_grid_stable'),
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+            final url = data['fileUrl'];
+            if (url == null) return const SizedBox.shrink();
+
+            return GestureDetector(
+              onTap: () => _showFullImage(url),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: url,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 400,
+                  memCacheHeight: 400,
+                  maxWidthDiskCache:
+                  800, // Ajustado para o parâmetro correto da versão
+                  placeholder: (context, url) =>
+                      Container(color: Colors.grey[200]),
+                  errorWidget: (context, url, error) =>
+                  const Icon(Icons.broken_image),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFeedbackPanel() {
+    if (widget.userIsAdmin ||
+        _chatStatus != 'closed' ||
+        (_chatData != null && _chatData!['feedbackRating'] != null)) {
+      return const SizedBox.shrink();
+    }
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)]),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text("Como foi seu atendimento?",
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+                5,
+                    (index) => IconButton(
+                  icon: Icon(
+                      index < _rating ? Icons.star : Icons.star_border,
+                      color: Colors.amber,
+                      size: 32),
+                  onPressed: () => setState(() => _rating = index + 1),
+                )),
+          ),
+          TextField(
+            controller: _feedbackController,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+                hintText: "Deixe um comentário (opcional)", isDense: true),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmittingFeedback ? null : _submitFeedback,
+              child: _isSubmittingFeedback
+                  ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Text("Enviar Avaliação"),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInputArea() {
+    bool isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (_replyToText != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: Colors.grey[200],
+            child: Row(
+              children: [
+                const Icon(Icons.reply, size: 20, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                    child: Text('Respondendo a: $_replyToText',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 12, fontStyle: FontStyle.italic))),
+                IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => setState(() => _replyToText = null)),
+              ],
+            ),
+          ),
+        ],
+        Container(
+          padding: EdgeInsets.symmetric(
+              horizontal: 8, vertical: isLandscape ? 4 : 6),
+          color: Colors.grey[100],
+          child: Row(
+            children: [
+              if (widget.userIsAdmin && !_isRecording)
+                IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.bolt, color: Colors.orange),
+                    onPressed: _showQuickMessagesPanel),
+              if (!_isRecording)
+                IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.attach_file),
+                    onPressed:
+                    _chatStatus == 'open' ? _pickAndUploadFile : null),
+              Expanded(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 12, vertical: _isRecording ? 4 : 0),
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                            child: _isRecording
+                                ? Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.circle,
+                                      color: Colors.red, size: 8),
+                                  const SizedBox(width: 8),
+                                  Text("Gravando... $_recordingTime",
+                                      style: const TextStyle(
+                                          color: Colors.red,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13))
+                                ])
+                                : TextField(
+                              controller: _messageController,
+                              focusNode: _inputFocusNode,
+                              enabled: _chatStatus == 'open',
+                              maxLines: isLandscape ? 1 : 5,
+                              minLines: 1,
+                              textCapitalization:
+                              TextCapitalization.sentences,
+                              decoration: InputDecoration(
+                                  hintText: _chatStatus == 'open'
+                                      ? 'Mensagem...'
+                                      : 'Chat finalizado',
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 8)),
+                            )),
+                      ],
+                    ),
+                  )),
+              const SizedBox(width: 8),
+              if (_messageController.text.trim().isEmpty &&
+                  _chatStatus == 'open')
+                GestureDetector(
+                  onTap: _handleAudioAction,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                        color: Colors.blue, shape: BoxShape.circle),
+                    child: Icon(_isRecording ? Icons.stop : Icons.mic_none,
+                        color: Colors.white, size: 20),
+                  ),
+                )
+              else
+                IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.send, color: Colors.blue),
+                    onPressed:
+                    _chatStatus == 'open' ? () => _sendMessage() : null),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class WaveformPainter extends CustomPainter {
+  final List<double> waves;
+  final double progress;
+  final Color activeColor;
+  final Color inactiveColor;
+  WaveformPainter(
+      {required this.waves,
+        required this.progress,
+        required this.activeColor,
+        required this.inactiveColor});
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..strokeCap = StrokeCap.round;
+    final double width = size.width;
+    final double height = size.height;
+    final double barWidth = width / (waves.length * 1.5);
+    final double gap = barWidth * 0.5;
+    for (int i = 0; i < waves.length; i++) {
+      final double barHeight = waves[i] * height;
+      final double x = i * (barWidth + gap);
+      final double y = (height - barHeight) / 2;
+      paint.color =
+      (i / waves.length) <= progress ? activeColor : inactiveColor;
+      canvas.drawRRect(
+        RRect.fromLTRBR(
+            x, y, x + barWidth, y + barHeight, Radius.circular(barWidth / 2)),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant WaveformPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}

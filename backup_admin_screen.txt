@@ -1,0 +1,561 @@
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
+
+import 'chat_screen.dart';
+import 'admin_clients_screen.dart';
+import 'welcome_screen.dart';
+
+class AdminUsersScreen extends StatefulWidget {
+  const AdminUsersScreen({super.key});
+
+  @override
+  State<AdminUsersScreen> createState() => _AdminUsersScreenState();
+}
+
+class _AdminUsersScreenState extends State<AdminUsersScreen> {
+  final usersCollection = FirebaseFirestore.instance.collection('users');
+  final chatsCollection = FirebaseFirestore.instance.collection('chats');
+
+  final ValueNotifier<Map<String, Map<String, dynamic>>> chatCacheNotifier =
+  ValueNotifier({});
+
+  String searchQuery = '';
+  String statusFilter = 'Todos';
+
+  Timer? _debounce;
+
+  Color statusColor(String status) {
+    switch (status) {
+      case 'pendente':
+        return Colors.amber;
+      case 'em atendimento':
+        return Colors.blue;
+      case 'concluído':
+        return Colors.green;
+      case 'encerrado':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  Future<void> _logoutAdmin() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    if (!mounted) return;
+
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+          (route) => false,
+    );
+  }
+
+  Future<void> _exportChat(
+      BuildContext context, String chatId, String userName) async {
+    try {
+      final snapshot = await chatsCollection
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('timestamp')
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nenhuma mensagem para exportar')),
+        );
+        return;
+      }
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.Page(
+          build: (context) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Chat com $userName', style: pw.TextStyle(fontSize: 20)),
+              pw.SizedBox(height: 12),
+              ...snapshot.docs.map((doc) {
+                final data = doc.data();
+                final ts = data['timestamp'] as Timestamp?;
+                final dateStr = ts != null
+                    ? DateFormat('dd/MM/yyyy HH:mm').format(ts.toDate())
+                    : '';
+                return pw.Padding(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                  child: pw.Text(
+                    '${data['sender']} • $dateStr • ${data['edited'] == true ? "editado" : ""}: ${data['text']}',
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      );
+
+      await Printing.layoutPdf(onLayout: (format) async => pdf.save());
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Exportação concluída')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao exportar chat: $e')),
+      );
+    }
+  }
+
+  void _editAdminNotes(String chatId, String currentNotes) {
+    final controller = TextEditingController(text: currentNotes);
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Notas internas do admin'),
+        content: SingleChildScrollView(
+          child: TextField(
+            controller: controller,
+            maxLines: null,
+            keyboardType: TextInputType.multiline,
+            decoration: const InputDecoration(
+              hintText: 'Digite notas internas para este cliente...',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await chatsCollection.doc(chatId).update({
+                'adminNotes': controller.text.trim(),
+              });
+              chatCacheNotifier.value = {
+                ...chatCacheNotifier.value,
+                chatId: {
+                  ...chatCacheNotifier.value[chatId] ?? {},
+                  'adminNotes': controller.text.trim(),
+                }
+              };
+              Navigator.pop(context);
+            },
+            child: const Text('Salvar'),
+          ),
+          if (currentNotes.isNotEmpty)
+            TextButton(
+              onPressed: () async {
+                await chatsCollection.doc(chatId).update({'adminNotes': ''});
+                chatCacheNotifier.value = {
+                  ...chatCacheNotifier.value,
+                  chatId: {
+                    ...chatCacheNotifier.value[chatId] ?? {},
+                    'adminNotes': '',
+                  }
+                };
+                Navigator.pop(context);
+              },
+              child: const Text('Remover'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _updateChatCacheDebounced(String userId, Timestamp ts) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 150), () {
+      final currentCache = chatCacheNotifier.value[userId];
+      final updated = Map<String, Map<String, dynamic>>.from(chatCacheNotifier.value);
+      updated[userId] = {
+        ...currentCache ?? {},
+        'lastMessageAt': ts,
+      };
+      chatCacheNotifier.value = updated;
+    });
+  }
+
+  void _showAllFeedbacks() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.9,
+        maxChildSize: 0.95,
+        minChildSize: 0.5,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: Text("Histórico de Avaliações", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance.collectionGroup('feedbacks').orderBy('timestamp', descending: true).snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) return Center(child: Text("Erro ao carregar: ${snapshot.error}"));
+                  if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+                  final feedbacks = snapshot.data!.docs;
+                  if (feedbacks.isEmpty) return const Center(child: Text("Nenhuma avaliação encontrada."));
+
+                  return ListView.builder(
+                    controller: scrollController,
+                    itemCount: feedbacks.length,
+                    itemBuilder: (context, index) {
+                      final data = feedbacks[index].data() as Map<String, dynamic>;
+                      final rating = data['rating'] ?? 0;
+                      final comment = data['comment'] ?? '';
+                      final userName = data['userName'] ?? 'Usuário';
+                      final ts = data['timestamp'] as Timestamp?;
+                      final dateStr = ts != null ? DateFormat('dd/MM HH:mm').format(ts.toDate()) : '';
+
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.amber[100],
+                          child: Text(rating.toString(), style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+                        ),
+                        title: Text(userName),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: List.generate(5, (i) => Icon(i < rating ? Icons.star : Icons.star_border, size: 16, color: Colors.amber))),
+                            if (comment.isNotEmpty) Text(comment, style: const TextStyle(fontStyle: FontStyle.italic)),
+                          ],
+                        ),
+                        trailing: Text(dateStr, style: const TextStyle(fontSize: 10)),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin - Chats'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.star_rate, color: Colors.amber),
+            tooltip: 'Feedbacks',
+            onPressed: _showAllFeedbacks,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: _logoutAdmin,
+          ),
+        ],
+      ),
+      body: StreamBuilder<QuerySnapshot>(
+        stream: chatsCollection.snapshots(),
+        builder: (context, chatSnapshot) {
+          final Map<String, Map<String, dynamic>> currentChatsData = {};
+          if (chatSnapshot.hasData) {
+            for (var doc in chatSnapshot.data!.docs) {
+              final data = doc.data() as Map<String, dynamic>;
+              currentChatsData[doc.id] = {
+                'lastMessageAt': data['lastMessageAt'],
+                'lastMessage': data['lastMessage'] ?? '',
+                'adminNotes': data['adminNotes'] ?? '',
+                'feedbackRating': data['feedbackRating'],
+                'feedbackComment': data['feedbackComment'] ?? '',
+              };
+            }
+          }
+
+          return StreamBuilder<QuerySnapshot>(
+            stream: usersCollection.where('isAdmin', isEqualTo: false).snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+
+              final users = snapshot.data!.docs;
+
+              final sortedUsers = List.from(users);
+              sortedUsers.sort((a, b) {
+                final chatA = currentChatsData[a.id] ?? {};
+                final chatB = currentChatsData[b.id] ?? {};
+
+                DateTime tsA = chatA['lastMessageAt'] != null
+                    ? (chatA['lastMessageAt'] as Timestamp).toDate()
+                    : DateTime.fromMillisecondsSinceEpoch(0);
+
+                DateTime tsB = chatB['lastMessageAt'] != null
+                    ? (chatB['lastMessageAt'] as Timestamp).toDate()
+                    : DateTime.fromMillisecondsSinceEpoch(0);
+
+                return tsB.compareTo(tsA);
+              });
+
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText: 'Pesquisar tudo (Nome, Números, Notas)...',
+                              prefixIcon: Icon(Icons.search),
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            onChanged: (value) {
+                              setState(() => searchQuery = value.trim().toLowerCase());
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        DropdownButton<String>(
+                          value: statusFilter,
+                          items: <String>['Todos', 'pendente', 'em atendimento', 'concluído', 'encerrado']
+                              .map((status) => DropdownMenuItem(
+                            value: status,
+                            child: Text(status),
+                          ))
+                              .toList(),
+                          onChanged: (newStatus) {
+                            if (newStatus != null) setState(() => statusFilter = newStatus);
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: sortedUsers.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 4),
+                      itemBuilder: (context, index) {
+                        final user = sortedUsers[index];
+                        final userData = user.data() as Map<String, dynamic>;
+                        final String userName = (userData['name'] ?? '').toString().toLowerCase();
+                        final String currentStatus = userData['status'] ?? 'em atendimento';
+                        final String userId = user.id.toLowerCase();
+                        final String adminNotes = (currentChatsData[user.id]?['adminNotes'] ?? '').toString().toLowerCase();
+                        final int? feedbackRating = currentChatsData[user.id]?['feedbackRating'];
+                        final String feedbackComment = currentChatsData[user.id]?['feedbackComment'] ?? '';
+
+                        return StreamBuilder<QuerySnapshot>(
+                          key: ValueKey(user.id),
+                          stream: chatsCollection
+                              .doc(user.id)
+                              .collection('messages')
+                              .orderBy('timestamp', descending: true)
+                              .snapshots(),
+                          builder: (context, chatMsgSnapshot) {
+                            if (!chatMsgSnapshot.hasData) return const SizedBox.shrink();
+
+                            final messages = chatMsgSnapshot.data!.docs;
+
+                            bool matchesSearch = searchQuery.isEmpty ||
+                                userName.contains(searchQuery) ||
+                                userId.contains(searchQuery) ||
+                                adminNotes.contains(searchQuery);
+
+                            if (!matchesSearch && searchQuery.isNotEmpty) {
+                              matchesSearch = messages.any((msg) {
+                                final text = (msg.data() as Map<String, dynamic>)['text']?.toString().toLowerCase() ?? '';
+                                return text.contains(searchQuery);
+                              });
+                            }
+
+                            final bool matchesStatus = statusFilter == 'Todos' ? true : currentStatus.toLowerCase() == statusFilter.toLowerCase();
+
+                            if (!matchesSearch || !matchesStatus) return const SizedBox.shrink();
+
+                            String lastMessage = '';
+                            String lastMessageTime = '';
+                            int unreadCount = 0;
+
+                            if (messages.isNotEmpty) {
+                              final lastMsgData = messages.first.data() as Map<String, dynamic>;
+                              lastMessage = (lastMsgData['text'] ?? '').toString();
+                              final ts = lastMsgData['timestamp'] as Timestamp?;
+                              if (ts != null) {
+                                lastMessageTime = DateFormat('HH:mm').format(ts.toDate());
+                                _updateChatCacheDebounced(user.id, ts);
+                              }
+
+                              unreadCount = messages.where((msg) {
+                                final data = msg.data() as Map<String, dynamic>;
+                                return data['readByAdmin'] == false;
+                              }).length;
+
+                              if (unreadCount > 0 && currentStatus != 'em atendimento') {
+                                usersCollection.doc(user.id).update({'status': 'em atendimento'});
+                              }
+                            }
+
+                            return Card(
+                              margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              child: ListTile(
+                                leading: CircleAvatar(
+                                  radius: 8,
+                                  backgroundColor: unreadCount > 0
+                                      ? Colors.blue
+                                      : statusColor(currentStatus),
+                                ),
+                                title: Text(userData['name'] ?? 'Sem Nome'),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (lastMessage.isNotEmpty)
+                                      Text(
+                                        '$lastMessage • $lastMessageTime',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    GestureDetector(
+                                      onTap: () => _editAdminNotes(user.id, adminNotes),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(top: 4, bottom: 2),
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        decoration: BoxDecoration(
+                                          color: Colors.yellow[50],
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          adminNotes.isNotEmpty ? adminNotes : 'Adicionar nota',
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                      ),
+                                    ),
+                                    if (feedbackRating != null)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Row(
+                                          children: [
+                                            Row(
+                                              children: List.generate(5, (i) => Icon(
+                                                i < feedbackRating ? Icons.star : Icons.star_border,
+                                                color: Colors.amber,
+                                                size: 14,
+                                              )),
+                                            ),
+                                            if (feedbackComment.isNotEmpty)
+                                              Expanded(
+                                                child: Text(
+                                                  " - $feedbackComment",
+                                                  style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.blueGrey),
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (unreadCount > 0)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          unreadCount.toString(),
+                                          style: const TextStyle(color: Colors.white, fontSize: 12),
+                                        ),
+                                      ),
+                                    const SizedBox(width: 8),
+                                    DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: currentStatus,
+                                        items: <String>['em atendimento','pendente','concluído','encerrado']
+                                            .map((status) => DropdownMenuItem(
+                                          value: status,
+                                          child: Text(status, style: const TextStyle(fontSize: 12)),
+                                        ))
+                                            .toList(),
+                                        onChanged: (newStatus) async {
+                                          if (newStatus != null) {
+                                            await usersCollection.doc(user.id).update({'status': newStatus});
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChatScreen(
+                                        userId: user.id,
+                                        userName: userData['name'] ?? '',
+                                        userIsAdmin: true,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                onLongPress: () {
+                                  showModalBottomSheet(
+                                    context: context,
+                                    builder: (_) => SafeArea(
+                                      child: Wrap(
+                                        children: [
+                                          ListTile(
+                                            leading: const Icon(Icons.file_download),
+                                            title: const Text('Exportar Chat'),
+                                            onTap: () async {
+                                              Navigator.pop(context);
+                                              await _exportChat(context, user.id, userData['name'] ?? '');
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.people),
+                      label: const Text('Clientes'),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AdminClientsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}

@@ -1,0 +1,168 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+
+import 'firebase_options.dart';
+import 'screens/chat_screen.dart';
+import 'screens/admin_users_screen.dart';
+import 'screens/welcome_screen.dart';
+import 'utils/chat_state.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicializa o Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // --- CONFIGURAÇÃO ONESIGNAL ---
+  // Habilitamos o log para você ver no VS Code se o login deu certo
+  OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+
+  try {
+    // Inicialização com o seu App ID
+    OneSignal.initialize("61e6874c-bca0-4628-ad07-8053c0cd499e");
+    debugPrint("OneSignal inicializado com sucesso.");
+  } catch (e) {
+    debugPrint("Erro ao inicializar OneSignal: $e");
+    // Não impede o app de rodar se o OneSignal falhar
+  }
+
+  runApp(const MyApp());
+}
+
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  String? _userId;
+  String? _userName;
+  bool _isAdmin = false;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initApp();
+    _setupOneSignalHandlers();
+  }
+
+  // Configura como o app reage a notificações
+  void _setupOneSignalHandlers() {
+    // Garante que a notificação apareça mesmo com o app aberto
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      debugPrint(
+          'Notificação recebida em primeiro plano: ${event.notification.body}');
+
+      if (ChatState.isChatOpen) {
+        // Se for admin, verifica se a notificação é do chat atual
+        if (ChatState.isAdmin) {
+          final data = event.notification.additionalData;
+          // Tenta encontrar o ID do remetente nos dados
+          // Assumindo que o ID do chat/usuário venha no payload.
+          // Como não temos certeza da chave, verificamos se o currentChatId está nos valores
+          if (data != null && ChatState.currentChatId != null) {
+            if (data.containsValue(ChatState.currentChatId) ||
+                event.notification.title?.contains(ChatState.currentChatId!) ==
+                    true) {
+              debugPrint('Notificação suprimida: Chat aberto com este usuário');
+              event.preventDefault();
+              return;
+            }
+            // Fallback: Se o título contém o nome do usuário (que geralmente não temos aqui fácil, mas ok)
+            // Se não conseguir dar match, exibe.
+          }
+        } else {
+          // Se for usuário (cliente), só tem um chat possível (com admin/suporte).
+          // Então se o chat estiver aberto, não deve receber notificação.
+          debugPrint('Notificação suprimida: Chat aberto');
+          event.preventDefault();
+          return;
+        }
+      }
+
+      event.notification.display();
+    });
+
+    OneSignal.Notifications.addClickListener((event) {
+      debugPrint('Usuário clicou na notificação: ${event.notification.body}');
+    });
+  }
+
+  Future<void> _initApp() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    _userId = prefs.getString('userId');
+    _userName = prefs.getString('userName');
+    _isAdmin = prefs.getBool('admin_logged_in') ?? false;
+    ChatState.isAdmin = _isAdmin;
+
+    // Solicita permissão de notificação
+    await OneSignal.Notifications.requestPermission(true);
+
+    // --- VINCULAR USUÁRIO AO ONESIGNAL (External ID) ---
+    // Este é o ponto que mudou após as 14:10 do dia 19
+    try {
+      if (_isAdmin) {
+        await OneSignal.login("admin");
+        debugPrint("OneSignal: Login como admin enviado");
+      } else if (_userId != null) {
+        await OneSignal.login(_userId!);
+        debugPrint("OneSignal: Login como usuário $_userId enviado");
+      }
+
+      // Força a ativação da inscrição
+      OneSignal.User.pushSubscription.optIn();
+    } catch (e) {
+      debugPrint("Erro no login do OneSignal: $e");
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    Widget initialScreen;
+
+    if (_isAdmin) {
+      initialScreen = const AdminUsersScreen();
+    } else if (_userId != null && _userName != null) {
+      initialScreen = ChatScreen(
+        userId: _userId!,
+        userName: _userName!,
+        userIsAdmin: false,
+      );
+    } else {
+      initialScreen = const WelcomeScreen();
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Faekon Suporte',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: false,
+      ),
+      home: initialScreen,
+    );
+  }
+}
